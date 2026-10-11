@@ -8,9 +8,13 @@ use crate::config::SoundConfig;
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
 use std::fs::File;
 use std::path::Path;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+/// Як часто аудіопотік оновлює стан відтворення.
+const STATUS_INTERVAL: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sound {
@@ -20,6 +24,14 @@ pub enum Sound {
 }
 
 impl Sound {
+    fn priority(self) -> u8 {
+        match self {
+            Sound::Bell => 0,
+            Sound::AllClear => 1,
+            Sound::Siren => 2,
+        }
+    }
+
     pub fn title(self) -> &'static str {
         match self {
             Sound::Bell => "Шкільний дзвінок",
@@ -36,31 +48,44 @@ enum Command {
 
 pub struct Player {
     tx: Sender<Command>,
+    now_playing: Arc<Mutex<Option<Sound>>>,
 }
 
 impl Player {
     /// Запускає потік програвача; `on_error` отримує текст помилок відтворення.
     pub fn spawn(on_error: impl Fn(String) + Send + 'static) -> Self {
         let (tx, rx) = mpsc::channel::<Command>();
+        let now_playing = Arc::new(Mutex::new(None));
+        let status = Arc::clone(&now_playing);
         thread::Builder::new()
             .name("audio".into())
             .spawn(move || {
                 let mut engine = Engine::default();
-                for command in rx {
-                    let result = match command {
-                        Command::Play(sound, config) => engine.play(sound, &config),
-                        Command::Stop => {
+                loop {
+                    let result = match rx.recv_timeout(STATUS_INTERVAL) {
+                        Ok(Command::Play(sound, config)) => engine.play(sound, &config),
+                        Ok(Command::Stop) => {
                             engine.stop_all();
                             Ok(())
                         }
+                        Err(RecvTimeoutError::Timeout) => Ok(()),
+                        Err(RecvTimeoutError::Disconnected) => break,
                     };
                     if let Err(message) = result {
                         on_error(message);
                     }
+                    if let Ok(mut current) = status.lock() {
+                        *current = engine.current();
+                    }
                 }
             })
             .expect("не вдалося запустити аудіопотік");
-        Self { tx }
+        Self { tx, now_playing }
+    }
+
+    /// Звук, що звучить зараз (найважливіший, якщо їх кілька).
+    pub fn now_playing(&self) -> Option<Sound> {
+        self.now_playing.lock().ok().and_then(|current| *current)
     }
 
     pub fn play(&self, sound: Sound, config: &SoundConfig) {
@@ -112,6 +137,14 @@ impl Engine {
         sink.append(source);
         self.playing.push((sound, sink));
         warning.map_or(Ok(()), Err)
+    }
+
+    fn current(&mut self) -> Option<Sound> {
+        self.playing.retain(|(_, sink)| !sink.empty());
+        self.playing
+            .iter()
+            .map(|(sound, _)| *sound)
+            .max_by_key(|s| s.priority())
     }
 
     fn stop(&mut self, sound: Sound) {
