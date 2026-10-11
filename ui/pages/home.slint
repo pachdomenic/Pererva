@@ -81,9 +81,9 @@ component ClockCard inherits Card {
     in property <bool> compact: false;
     kind: CardKind.primary;
     radius: Shape.extra-large-increased;
-    min-height: 260px;
+    min-height: max(260px, body.min-height);
 
-    VerticalLayout {
+    body := VerticalLayout {
         padding: 28px;
         spacing: 8px;
 
@@ -147,10 +147,10 @@ component ClockCard inherits Card {
 component AlertCard inherits Card {
     background: AlertColors.container;
     radius: Shape.extra-large-increased;
-    min-height: 260px;
+    min-height: max(260px, body.min-height);
     min-width: 280px;
 
-    VerticalLayout {
+    body := VerticalLayout {
         padding: 24px;
         spacing: 6px;
 
@@ -237,9 +237,9 @@ component AlertCard inherits Card {
 
 component NextBellCard inherits Card {
     kind: CardKind.filled;
-    min-height: 180px;
+    min-height: max(180px, body.min-height);
 
-    HorizontalLayout {
+    body := HorizontalLayout {
         padding: 24px;
         spacing: 24px;
 
@@ -307,9 +307,9 @@ component NextBellCard inherits Card {
 component ActionsCard inherits Card {
     in property <bool> compact: false;
     kind: CardKind.filled;
-    min-height: 180px;
+    min-height: max(180px, body.min-height);
 
-    VerticalLayout {
+    body := VerticalLayout {
         padding: 24px;
         spacing: 12px;
 
@@ -372,8 +372,9 @@ component ActionsCard inherits Card {
 
 component TodayCard inherits Card {
     kind: CardKind.filled;
+    min-height: body.min-height;
 
-    VerticalLayout {
+    body := VerticalLayout {
         padding: 24px;
         spacing: 8px;
         alignment: start;
@@ -452,8 +453,9 @@ component TodayCard inherits Card {
 
 component LogCard inherits Card {
     kind: CardKind.filled;
+    min-height: body.min-height;
 
-    VerticalLayout {
+    body := VerticalLayout {
         padding: 24px;
         spacing: 4px;
         alignment: start;
@@ -547,11 +549,13 @@ export component HomePage {
 
             if AppState.alert-level == AlertLevel.active: AlertBanner { }
 
+            // Однакові бажана й мінімальна ширина: колонки діляться за коефіцієнтами
+            // розтягування, а не за довжиною тексту в картках.
             if !narrow: HorizontalLayout {
                 spacing: 16px;
 
-                ClockCard { horizontal-stretch: 3; }
-                AlertCard { horizontal-stretch: 2; }
+                ClockCard { horizontal-stretch: 3; preferred-width: 1px; min-width: 240px; }
+                AlertCard { horizontal-stretch: 2; preferred-width: 1px; min-width: 240px; }
             }
             if narrow: ClockCard { compact: true; }
             if narrow: AlertCard { }
@@ -559,8 +563,8 @@ export component HomePage {
             if !narrow: HorizontalLayout {
                 spacing: 16px;
 
-                NextBellCard { horizontal-stretch: 1; }
-                ActionsCard { horizontal-stretch: 1; }
+                NextBellCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
+                ActionsCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
             }
             if narrow: NextBellCard { }
             if narrow: ActionsCard { compact: true; }
@@ -569,8 +573,8 @@ export component HomePage {
                 spacing: 16px;
                 alignment: stretch;
 
-                TodayCard { horizontal-stretch: 1; }
-                LogCard { horizontal-stretch: 1; }
+                TodayCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
+                LogCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
             }
             if narrow: TodayCard { }
             if narrow: LogCard { }
