@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod alert;
+mod app;
 mod audio;
 mod config;
 mod schedule;
