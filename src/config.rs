@@ -30,10 +30,6 @@ impl AlertProvider {
         }
     }
 
-    pub fn needs_token(self) -> bool {
-        matches!(self, AlertProvider::AlertsInUa)
-    }
-
     pub fn index(self) -> usize {
         Self::ALL.iter().position(|p| *p == self).unwrap_or(0)
     }

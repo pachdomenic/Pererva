@@ -4,7 +4,7 @@
 //! навчальних днів тижня. З нього обчислюються події дзвінків і поточний
 //! стан дня: урок, перерва, до чи після уроків.
 
-use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -61,16 +61,6 @@ pub enum BellKind {
     LessonStart,
     /// Дзвінок з уроку.
     LessonEnd,
-}
-
-impl BellKind {
-    pub fn label(self) -> &'static str {
-        match self {
-            BellKind::Warning => "Попереджувальний дзвінок",
-            BellKind::LessonStart => "Дзвінок на урок",
-            BellKind::LessonEnd => "Дзвінок з уроку",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,11 +160,6 @@ impl Schedule {
     pub fn is_school_day(&self, date: NaiveDate) -> bool {
         let day = date.weekday().number_from_monday() as u8;
         self.school_days.contains(&day)
-    }
-
-    pub fn is_school_weekday(&self, weekday: Weekday) -> bool {
-        self.school_days
-            .contains(&(weekday.number_from_monday() as u8))
     }
 
     /// Усі дзвінки заданого дня у хронологічному порядку.
