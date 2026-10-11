@@ -1,0 +1,397 @@
+// Елементи введення Material 3 Expressive.
+
+import { Theme, Shape, Type, Motion } from "../theme.slint";
+import { IconButton, StateLayer } from "buttons.slint";
+
+export component Switch {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    width: 52px;
+    height: 32px;
+    accessible-role: switch;
+    accessible-checked: checked;
+    accessible-action-default => { touch.clicked(); }
+
+    track := Rectangle {
+        border-radius: self.height / 2;
+        background: !enabled ? Theme.on-surface.with-alpha(Theme.disabled-container)
+            : checked ? Theme.primary : Theme.surface-container-highest;
+        border-width: checked ? 0 : 2px;
+        border-color: enabled ? Theme.outline : Theme.on-surface.with-alpha(Theme.disabled-container);
+        animate background { duration: Motion.effects-default; }
+
+        // Ореол стану навколо ручки.
+        Rectangle {
+            width: 40px;
+            height: 40px;
+            x: handle.x + handle.width / 2 - self.width / 2;
+            border-radius: self.width / 2;
+            background: checked ? Theme.primary : Theme.on-surface;
+            opacity: touch.pressed ? Theme.state-pressed : touch.has-hover ? Theme.state-hover : 0;
+            animate opacity { duration: Motion.effects-fast; }
+        }
+
+        handle := Rectangle {
+            private property <length> d: touch.pressed ? 28px : checked ? 24px : 16px;
+            width: d;
+            height: d;
+            x: checked ? parent.width - 4px - d : (parent.height - d) / 2 + (touch.pressed ? 2px : 0);
+            y: (parent.height - d) / 2;
+            border-radius: d / 2;
+            background: !enabled ? Theme.on-surface.with-alpha(Theme.disabled-content)
+                : checked ? (touch.pressed ? Theme.primary-container : Theme.on-primary) : Theme.outline;
+            animate x, width, height, y, border-radius { duration: Motion.fast; easing: Motion.spatial-fast; }
+            animate background { duration: Motion.effects-default; }
+
+            if checked: Image {
+                source: @image-url("../icons/check.svg");
+                width: 16px;
+                height: 16px;
+                colorize: Theme.on-primary-container;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        enabled: enabled;
+        mouse-cursor: enabled ? pointer : default;
+        clicked => {
+            checked = !checked;
+            toggled(checked);
+        }
+    }
+}
+
+// Слайдер Expressive: товста доріжка, вертикальна ручка з проміжками і
+// бульбашка зі значенням під час перетягування.
+export component Slider {
+    in-out property <float> value: 0.5;
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in property <string> value-label;
+    in property <bool> enabled: true;
+    callback changed(float);
+
+    private property <length> track-h: 16px;
+    private property <length> gap: 6px;
+    private property <float> ratio: (value - minimum) / max(0.0001, maximum - minimum);
+    private property <length> handle-x: ratio * (root.width - handle.width);
+
+    min-width: 120px;
+    height: 44px;
+    accessible-role: slider;
+    accessible-value: value;
+    accessible-value-minimum: minimum;
+    accessible-value-maximum: maximum;
+
+    // Активна частина доріжки.
+    Rectangle {
+        x: 0;
+        width: max(0px, handle-x - gap);
+        height: track-h;
+        border-top-left-radius: track-h / 2;
+        border-bottom-left-radius: track-h / 2;
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+        background: enabled ? Theme.primary : Theme.on-surface.with-alpha(Theme.disabled-content);
+    }
+
+    // Неактивна частина доріжки.
+    Rectangle {
+        x: handle-x + handle.width + gap;
+        width: max(0px, root.width - self.x);
+        height: track-h;
+        border-top-left-radius: 4px;
+        border-bottom-left-radius: 4px;
+        border-top-right-radius: track-h / 2;
+        border-bottom-right-radius: track-h / 2;
+        background: enabled ? Theme.secondary-container : Theme.on-surface.with-alpha(Theme.disabled-container);
+
+        // Індикатор кінця доріжки.
+        Rectangle {
+            x: parent.width - 10px;
+            width: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: Theme.primary;
+            visible: parent.width > 16px;
+        }
+    }
+
+    handle := Rectangle {
+        x: handle-x;
+        width: touch.pressed ? 2px : 4px;
+        height: 44px;
+        border-radius: 2px;
+        background: enabled ? Theme.primary : Theme.on-surface.with-alpha(Theme.disabled-content);
+        animate width { duration: Motion.fast; easing: Motion.spatial-fast; }
+    }
+
+    // Бульбашка зі значенням.
+    bubble := Rectangle {
+        visible: value-label != "";
+        width: max(48px, label.preferred-width + 24px);
+        height: 44px;
+        x: handle-x + handle.width / 2 - self.width / 2;
+        y: touch.pressed ? -52px : -40px;
+        opacity: touch.pressed ? 1 : 0;
+        border-radius: self.height / 2;
+        background: Theme.inverse-surface;
+        animate y, opacity { duration: Motion.fast; easing: Motion.spatial-fast; }
+
+        label := Text {
+            text: value-label;
+            color: Theme.inverse-on-surface;
+            font-size: Type.label-large;
+            font-weight: Type.medium;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: enabled;
+        mouse-cursor: enabled ? pointer : default;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.set-from-x(self.mouse-x);
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.set-from-x(self.mouse-x);
+            }
+        }
+    }
+
+    function set-from-x(x: length) {
+        let r = max(0, min(1, (x - handle.width / 2) / max(1px, root.width - handle.width)));
+        let v = minimum + r * (maximum - minimum);
+        if (v != value) {
+            value = v;
+            changed(v);
+        }
+    }
+}
+
+// Текстове поле з обведенням і «плаваючою» підписом.
+export component TextField {
+    in property <string> label;
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <string> supporting-text;
+    in property <bool> error: false;
+    in property <bool> password: false;
+    in property <bool> enabled: true;
+    in property <image> leading-icon;
+    in property <bool> centered: false;
+    // Колір фону під полем: ним маскується рамка за підписом.
+    in property <color> container-color: Theme.surface;
+    callback edited(string);
+    callback accepted(string);
+
+    private property <bool> focused: input.has-focus;
+    private property <bool> floating: focused || text != "";
+    private property <color> accent: error ? Theme.error : focused ? Theme.primary : Theme.outline;
+    private property <bool> has-leading: leading-icon.width > 0;
+
+    min-width: 64px;
+    preferred-width: 240px;
+    min-height: supporting-text != "" ? 76px : 56px;
+    accessible-role: text-input;
+    accessible-label: label;
+
+    frame := Rectangle {
+        y: 0;
+        height: 56px;
+        border-radius: Shape.extra-small;
+        border-width: focused || error ? 2px : 1px;
+        border-color: enabled ? accent : Theme.on-surface.with-alpha(Theme.disabled-container);
+        animate border-color { duration: Motion.effects-default; }
+
+        if has-leading: Image {
+            x: 12px;
+            source: leading-icon;
+            width: 24px;
+            height: 24px;
+            colorize: Theme.on-surface-variant;
+        }
+
+        input := TextInput {
+            x: has-leading ? 48px : 16px;
+            width: parent.width - self.x - 16px;
+            height: 24px;
+            y: (parent.height - self.height) / 2;
+            text <=> root.text;
+            enabled: enabled;
+            input-type: password ? InputType.password : InputType.text;
+            color: enabled ? Theme.on-surface : Theme.on-surface.with-alpha(Theme.disabled-content);
+            selection-background-color: Theme.primary.with-alpha(0.3);
+            selection-foreground-color: Theme.on-surface;
+            font-size: Type.body-large;
+            single-line: true;
+            horizontal-alignment: centered ? center : left;
+            vertical-alignment: center;
+            edited => { root.edited(self.text); }
+            accepted => { root.accepted(self.text); }
+        }
+
+        if text == "" && placeholder != "" && (focused || label == ""): Text {
+            x: input.x;
+            width: input.width;
+            text: placeholder;
+            color: Theme.on-surface-variant.with-alpha(0.7);
+            font-size: Type.body-large;
+            horizontal-alignment: centered ? center : left;
+            vertical-alignment: center;
+        }
+    }
+
+    // Підпис: всередині поля або на рамці.
+    if label != "": Rectangle {
+        x: floating ? 12px : input.x - 4px + (has-leading ? 0 : 0);
+        y: floating ? -8px : (frame.height - self.height) / 2;
+        width: lbl.preferred-width + 8px;
+        height: lbl.preferred-height;
+        background: floating ? container-color : transparent;
+        animate x, y { duration: Motion.fast; easing: Motion.emphasized; }
+
+        lbl := Text {
+            text: label;
+            color: error ? Theme.error : focused ? Theme.primary : Theme.on-surface-variant;
+            font-size: floating ? Type.body-small : Type.body-large;
+            animate font-size { duration: Motion.fast; easing: Motion.emphasized; }
+        }
+    }
+
+    if supporting-text != "": Text {
+        x: 16px;
+        y: 60px;
+        width: parent.width - 32px;
+        text: supporting-text;
+        color: error ? Theme.error : Theme.on-surface-variant;
+        font-size: Type.body-small;
+        wrap: word-wrap;
+    }
+
+    TouchArea {
+        y: 0;
+        height: 56px;
+        mouse-cursor: MouseCursor.text;
+        enabled: enabled && !focused;
+        clicked => { input.focus(); }
+    }
+}
+
+// Числовий степпер: [−] значення [+].
+export component Stepper {
+    in-out property <int> value;
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    in property <int> step: 1;
+    in property <string> suffix;
+    callback changed(int);
+
+    height: 48px;
+    min-width: layout.min-width;
+
+    Rectangle {
+        border-radius: self.height / 2;
+        background: Theme.surface-container-high;
+    }
+
+    layout := HorizontalLayout {
+        padding: 4px;
+        spacing: 4px;
+        alignment: center;
+
+        IconButton {
+            icon: @image-url("../icons/remove.svg");
+            kind: tonal;
+            enabled: value > minimum;
+            tooltip: "Зменшити";
+            clicked => {
+                value = max(minimum, value - step);
+                changed(value);
+            }
+        }
+        Text {
+            min-width: 72px;
+            text: value + (suffix == "" ? "" : " " + suffix);
+            color: Theme.on-surface;
+            font-size: Type.title-medium;
+            font-weight: Type.emphasized;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        IconButton {
+            icon: @image-url("../icons/add.svg");
+            kind: tonal;
+            enabled: value < maximum;
+            tooltip: "Збільшити";
+            clicked => {
+                value = min(maximum, value + step);
+                changed(value);
+            }
+        }
+    }
+}
+
+// Чіп-фільтр. Вибраний чіп заповнюється і стає «пігулкою».
+export component FilterChip {
+    in property <string> text;
+    in-out property <bool> selected;
+    callback toggled(bool);
+
+    height: 36px;
+    min-width: layout.min-width;
+    accessible-role: checkbox;
+    accessible-label: text;
+    accessible-checked: selected;
+
+    Rectangle {
+        border-radius: selected ? self.height / 2 : Shape.small;
+        background: selected ? Theme.secondary-container : transparent;
+        border-width: selected ? 0 : 1px;
+        border-color: Theme.outline-variant;
+        clip: true;
+        animate border-radius { duration: Motion.default; easing: Motion.spatial-fast; }
+        animate background { duration: Motion.effects-default; }
+
+        StateLayer {
+            tint: selected ? Theme.on-secondary-container : Theme.on-surface-variant;
+            hovered: touch.has-hover;
+            pressed: touch.pressed;
+        }
+    }
+
+    layout := HorizontalLayout {
+        padding-left: selected ? 10px : 16px;
+        padding-right: 16px;
+        spacing: 6px;
+        alignment: center;
+
+        if selected: Image {
+            source: @image-url("../icons/check.svg");
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+            colorize: Theme.on-secondary-container;
+        }
+        Text {
+            text: text;
+            color: selected ? Theme.on-secondary-container : Theme.on-surface-variant;
+            font-size: Type.label-large;
+            font-weight: selected ? Type.emphasized : Type.medium;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            selected = !selected;
+            toggled(selected);
+        }
+    }
+}
