@@ -67,6 +67,7 @@ pub fn to_form(config: &Config) -> SettingsData {
         anthem_file: path_to_string(&config.sound.anthem_file),
         theme: config.ui.theme.index(),
         language: config.ui.language.index(),
+        close_to_tray: config.ui.close_to_tray,
     }
 }
 
@@ -112,6 +113,7 @@ pub fn apply_form(base: &Config, form: &SettingsData) -> Config {
 
     config.ui.theme = ThemeMode::from_index(form.theme);
     config.ui.language = Language::from_index(form.language);
+    config.ui.close_to_tray = form.close_to_tray;
     config.normalize();
     config
 }
@@ -133,6 +135,7 @@ mod tests {
         config.memorial.time = chrono::NaiveTime::from_hms_opt(9, 5, 0).unwrap();
         config.memorial.school_days_only = true;
         config.ui.theme = ThemeMode::Dark;
+        config.ui.close_to_tray = false;
         assert_eq!(apply_form(&config, &to_form(&config)), config);
     }
 

@@ -8,6 +8,7 @@ mod config;
 mod i18n;
 mod schedule;
 
+use app::instance::{self, Instance};
 use i18n::pick;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -72,7 +73,41 @@ fn main() -> ExitCode {
         }
     }
 
-    match app::controller::run(config_path) {
+    let instance = match instance::acquire(&instance::default_dir()) {
+        Ok(Instance::Primary(guard)) => Some(guard),
+        Ok(Instance::AlreadyRunning(shown)) => {
+            // Другий екземпляр подавав би ті самі дзвінки вдруге.
+            match shown {
+                Ok(()) => println!(
+                    "{}",
+                    pick(
+                        "Програма вже запущена — показано її вікно",
+                        "The app is already running — its window is shown"
+                    )
+                ),
+                Err(err) => eprintln!(
+                    "{}",
+                    tr!(
+                        "Програма вже запущена, але не вдалося показати її вікно: {err}",
+                        "The app is already running, but its window could not be shown: {err}"
+                    )
+                ),
+            }
+            return ExitCode::SUCCESS;
+        }
+        Err(err) => {
+            eprintln!(
+                "{}",
+                tr!(
+                    "Не вдалося перевірити, чи програма вже запущена: {err}",
+                    "Could not check whether the app is already running: {err}"
+                )
+            );
+            None
+        }
+    };
+
+    match app::controller::run(config_path, instance) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             eprintln!(

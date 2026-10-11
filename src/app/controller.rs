@@ -3,6 +3,7 @@
 
 use super::draft::ScheduleDraft;
 use super::format::{countdown, duration_words, long_date, ordinal, relative_day};
+use super::instance::Guard;
 use super::settings::{apply_form, district_names, region_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
 use crate::alert::tracker::{AlertTracker, Transition};
@@ -12,8 +13,8 @@ use crate::config::{AlertProvider, Config, Language, ThemeMode, YellowMode};
 use crate::i18n::{self, Lang, pick};
 use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm, parse_hhmm};
 use crate::{
-    AlertLevel, AppState, AppWindow, EditLesson, LessonRow, LessonState, LogEntry, LogKind, Theme,
-    tr,
+    AlertLevel, AppState, AppTray, AppWindow, EditLesson, LessonRow, LessonState, LogEntry,
+    LogKind, Theme, tr,
 };
 use chrono::{DateTime, Duration, Local, NaiveDateTime};
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
@@ -38,6 +39,7 @@ enum Event {
 
 pub struct Controller {
     window: slint::Weak<AppWindow>,
+    tray: slint::Weak<AppTray>,
     config: Config,
     config_path: PathBuf,
     player: Player,
@@ -61,10 +63,17 @@ pub struct Controller {
 }
 
 /// Створює вікно, запускає фонові потоки і цикл подій.
-pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
+///
+/// `instance` — блокування єдиного екземпляра: через нього інші запуски
+/// просять показати вікно.
+pub fn run(config_path: PathBuf, instance: Option<Guard>) -> Result<(), slint::PlatformError> {
     let window = AppWindow::new()?;
     // Поки налаштування не прочитано, помилки — типовою мовою.
     i18n::set(Language::default().resolve());
+    // Поки значок у треї видимий, закрите вікно лише ховається, а цикл подій
+    // (дзвінки, тривога, звук) працює далі. Якщо трею в системі немає,
+    // значок не створюється і закриття вікна, як і раніше, завершує програму.
+    let tray = AppTray::new()?;
     let (config, load_error) = match Config::load(&config_path) {
         Ok(config) => (config, None),
         Err(err) => (Config::default(), Some(format!("{err:#}"))),
@@ -81,6 +90,7 @@ pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
 
     let controller = Rc::new(RefCell::new(Controller {
         window: window.as_weak(),
+        tray: tray.as_weak(),
         draft: ScheduleDraft::from_schedule(&config.schedule),
         config,
         config_path,
@@ -101,6 +111,13 @@ pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
     }));
     controller.borrow_mut().init(load_error);
     bind_callbacks(&window, &controller);
+    bind_tray(&tray, &window, &controller);
+    if let Some(instance) = instance {
+        let weak = window.as_weak();
+        instance.listen(move || {
+            let _ = weak.upgrade_in_event_loop(|w| show_window(&w));
+        });
+    }
 
     let timer = Timer::default();
     let weak = Rc::downgrade(&controller);
@@ -110,7 +127,35 @@ pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
         }
     });
 
-    window.run()
+    window.show()?;
+    slint::run_event_loop()
+}
+
+/// Показує сховане або згорнуте вікно.
+fn show_window(window: &AppWindow) {
+    if let Err(err) = window.show() {
+        eprintln!(
+            "{}",
+            tr!(
+                "Не вдалося показати вікно: {err}",
+                "Could not show the window: {err}"
+            )
+        );
+    }
+    window.window().set_minimized(false);
+}
+
+fn bind_tray(tray: &AppTray, window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
+    let weak = window.as_weak();
+    tray.on_show_window(move || {
+        if let Some(window) = weak.upgrade() {
+            show_window(&window);
+        }
+    });
+    tray.on_stop_sound(action(controller, |c| c.player.stop()));
+    tray.on_quit(|| {
+        let _ = slint::quit_event_loop();
+    });
 }
 
 /// Обгортає метод контролера у колбек без аргументів.
@@ -318,6 +363,26 @@ impl Controller {
             state.set_sound_playing(playing.is_some());
             state.set_playing_label(playing.map(Sound::title).unwrap_or_default().into());
         });
+        self.render_tray(playing.is_some());
+    }
+
+    /// Стан значка в треї: видимість, підказка і пункт «Зупинити звук».
+    fn render_tray(&self, sound_playing: bool) {
+        let (Some(tray), Some(window)) = (self.tray.upgrade(), self.window.upgrade()) else {
+            return;
+        };
+        let state = window.global::<AppState>();
+        let mut status = state.get_alert_title().to_string();
+        if state.get_next_bell_time() != "--:--" {
+            status = format!(
+                "{status}\n{} {}",
+                state.get_next_bell_label(),
+                state.get_next_bell_in()
+            );
+        }
+        tray.set_shown(self.config.ui.close_to_tray);
+        tray.set_status(status.into());
+        tray.set_sound_playing(sound_playing);
     }
 
     fn bells_muted(&self) -> bool {

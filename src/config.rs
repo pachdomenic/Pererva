@@ -265,11 +265,23 @@ impl Language {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UiConfig {
     pub theme: ThemeMode,
     pub language: Language,
+    /// Закрите вікно ховається в системний трей, а програма працює далі.
+    pub close_to_tray: bool,
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            theme: ThemeMode::default(),
+            language: Language::default(),
+            close_to_tray: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -395,6 +407,7 @@ mod tests {
         config.schedule.warning_minutes = 3;
         config.ui.theme = ThemeMode::Dark;
         config.ui.language = Language::En;
+        config.ui.close_to_tray = false;
         config.memorial.time = NaiveTime::from_hms_opt(9, 30, 0).unwrap();
         config.memorial.anthem = false;
         config.sound.anthem_file = Some("/tmp/anthem.mp3".into());
@@ -427,6 +440,7 @@ mod tests {
         );
         assert_eq!(config.sound.volume, 1.0);
         assert_eq!(config.schedule, Schedule::default());
+        assert!(config.ui.close_to_tray);
     }
 
     #[test]

@@ -333,6 +333,18 @@ msgstr "Siren file"
 msgid "Файл сигналу відбою"
 msgstr "All-clear file"
 
+msgid "Робота у фоні"
+msgstr "Background mode"
+
+msgid "Що робити, коли закривають вікно"
+msgstr "What to do when the window is closed"
+
+msgid "Згортати в трей"
+msgstr "Minimize to tray"
+
+msgid "Після закриття вікна програма лишається в системному треї і далі подає дзвінки та сирену. Вийти — через меню значка в треї"
+msgstr "After the window is closed the app stays in the system tray and keeps ringing bells and the siren. Quit from the tray icon menu"
+
 msgid "Оформлення"
 msgstr "Appearance"
 
@@ -362,3 +374,12 @@ msgstr "No data"
 
 msgid "Уся область"
 msgstr "Entire region"
+
+msgid "Відкрити"
+msgstr "Open"
+
+msgid "Зупинити звук"
+msgstr "Stop sound"
+
+msgid "Вийти"
+msgstr "Quit"

@@ -1,0 +1,39 @@
+// Значок у системному треї: програма працює далі, коли вікно закрите.
+// Глобальний стан у трею свій, тому все потрібне передається властивостями.
+
+export component AppTray inherits SystemTrayIcon {
+    // Значок показано, лише коли ввімкнено «Згортати в трей».
+    in property <bool> shown: true;
+    // Короткий стан для підказки: тривога і наступний дзвінок.
+    in property <string> status;
+    in property <bool> sound-playing;
+
+    callback show-window();
+    callback stop-sound();
+    callback quit();
+
+    // Растрова іконка: трей приймає лише піксельні зображення.
+    // Згенерована з packaging/shkilni-dzvinky.svg (64×64).
+    icon: @image-url("tray/icon.png");
+    visible: root.shown;
+    title: @tr("Шкільні дзвінки");
+    tooltip: root.status == "" ? @tr("Шкільні дзвінки") : @tr("Шкільні дзвінки") + "\n" + root.status;
+    clicked => { root.show-window(); }
+
+    Menu {
+        MenuItem {
+            title: @tr("Відкрити");
+            activated => { root.show-window(); }
+        }
+        MenuItem {
+            title: @tr("Зупинити звук");
+            enabled: root.sound-playing;
+            activated => { root.stop-sound(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: @tr("Вийти");
+            activated => { root.quit(); }
+        }
+    }
+}

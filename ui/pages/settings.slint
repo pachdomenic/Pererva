@@ -476,6 +476,35 @@ export component SettingsPage {
                 }
             }
 
+            // Робота у фоні.
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+
+                    SectionHeader {
+                        text: @tr("Робота у фоні");
+                        subtitle: @tr("Що робити, коли закривають вікно");
+                        icon: Icons.school;
+                    }
+
+                    SettingRow {
+                        title: @tr("Згортати в трей");
+                        description: @tr("Після закриття вікна програма лишається в системному треї і далі подає дзвінки та сирену. Вийти — через меню значка в треї");
+
+                        Switch {
+                            checked: AppState.settings.close-to-tray;
+                            toggled(value) => {
+                                AppState.settings.close-to-tray = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                }
+            }
+
             // Оформлення.
             Card {
                 kind: CardKind.filled;
