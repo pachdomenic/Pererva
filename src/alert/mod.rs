@@ -1,6 +1,7 @@
 //! Отримання стану повітряної тривоги.
 
 pub mod alerts_in_ua;
+pub mod monitor;
 pub mod regions;
 pub mod ubilling;
 
