@@ -1,0 +1,171 @@
+// Токени дизайн-системи Material 3 Expressive: кольори, форми, типографіка, рух.
+
+import "fonts/RobotoFlex.ttf";
+
+// Колірна схема, згенерована з базового кольору #3D5AFE (індиго).
+export global Theme {
+    in-out property <bool> dark: false;
+
+    // Primary
+    out property <color> primary: dark ? #b9c3ff : #4355b9;
+    out property <color> on-primary: dark ? #08218a : #ffffff;
+    out property <color> primary-container: dark ? #293ca0 : #dee0ff;
+    out property <color> on-primary-container: dark ? #dee0ff : #00105c;
+    out property <color> primary-fixed-dim: #b9c3ff;
+    out property <color> inverse-primary: dark ? #4355b9 : #b9c3ff;
+
+    // Secondary
+    out property <color> secondary: dark ? #c4c5dd : #5b5d72;
+    out property <color> on-secondary: dark ? #2d2f42 : #ffffff;
+    out property <color> secondary-container: dark ? #434659 : #e0e1f9;
+    out property <color> on-secondary-container: dark ? #e0e1f9 : #181a2c;
+
+    // Tertiary
+    out property <color> tertiary: dark ? #e6bad7 : #77536d;
+    out property <color> on-tertiary: dark ? #44263d : #ffffff;
+    out property <color> tertiary-container: dark ? #5d3c55 : #ffd7f1;
+    out property <color> on-tertiary-container: dark ? #ffd7f1 : #2d1228;
+
+    // Error — тривога
+    out property <color> error: dark ? #ffb4ab : #ba1a1a;
+    out property <color> on-error: dark ? #690005 : #ffffff;
+    out property <color> error-container: dark ? #93000a : #ffdad6;
+    out property <color> on-error-container: dark ? #ffdad6 : #410002;
+
+    // Success — відбій (розширена роль)
+    out property <color> success: dark ? #8bd88a : #1b6d2a;
+    out property <color> on-success: dark ? #003911 : #ffffff;
+    out property <color> success-container: dark ? #00531c : #a6f5a3;
+    out property <color> on-success-container: dark ? #a6f5a3 : #002106;
+
+    // Warning — часткова тривога (розширена роль)
+    out property <color> warning: dark ? #f4bf48 : #785a00;
+    out property <color> warning-container: dark ? #5b4300 : #ffdf9e;
+    out property <color> on-warning-container: dark ? #ffdf9e : #261a00;
+
+    // Поверхні
+    out property <color> surface: dark ? #121318 : #fbf8ff;
+    out property <color> surface-dim: dark ? #121318 : #dbd9e0;
+    out property <color> surface-bright: dark ? #38393f : #fbf8ff;
+    out property <color> surface-container-lowest: dark ? #0d0e13 : #ffffff;
+    out property <color> surface-container-low: dark ? #1b1b21 : #f5f2fa;
+    out property <color> surface-container: dark ? #1f1f25 : #efedf4;
+    out property <color> surface-container-high: dark ? #29292f : #e9e7ef;
+    out property <color> surface-container-highest: dark ? #34343a : #e3e1e9;
+    out property <color> on-surface: dark ? #e3e1e9 : #1b1b21;
+    out property <color> on-surface-variant: dark ? #c6c5d0 : #46464f;
+    out property <color> outline: dark ? #90909a : #767680;
+    out property <color> outline-variant: dark ? #46464f : #c6c5d0;
+    out property <color> inverse-surface: dark ? #e3e1e9 : #303036;
+    out property <color> inverse-on-surface: dark ? #303036 : #f2eff7;
+    out property <color> scrim: #000000;
+    out property <color> shadow: #000000;
+
+    // Прозорість станових шарів (hover / focus / pressed / dragged)
+    out property <float> state-hover: 0.08;
+    out property <float> state-focus: 0.10;
+    out property <float> state-pressed: 0.10;
+    out property <float> state-dragged: 0.16;
+    out property <float> disabled-content: 0.38;
+    out property <float> disabled-container: 0.12;
+}
+
+// Шкала скруглень. Expressive використовує збільшені кути та форми-пігулки.
+export global Shape {
+    out property <length> none: 0px;
+    out property <length> extra-small: 4px;
+    out property <length> small: 8px;
+    out property <length> medium: 12px;
+    out property <length> large: 16px;
+    out property <length> large-increased: 20px;
+    out property <length> extra-large: 28px;
+    out property <length> extra-large-increased: 32px;
+    out property <length> extra-extra-large: 48px;
+}
+
+// Типографічна шкала Material 3 зі «підкресленими» (emphasized) варіантами.
+export global Type {
+    out property <string> family: "Roboto Flex";
+
+    out property <length> display-large: 57px;
+    out property <length> display-medium: 45px;
+    out property <length> display-small: 36px;
+    out property <length> headline-large: 32px;
+    out property <length> headline-medium: 28px;
+    out property <length> headline-small: 24px;
+    out property <length> title-large: 22px;
+    out property <length> title-medium: 16px;
+    out property <length> title-small: 14px;
+    out property <length> body-large: 16px;
+    out property <length> body-medium: 14px;
+    out property <length> body-small: 12px;
+    out property <length> label-large: 14px;
+    out property <length> label-medium: 12px;
+    out property <length> label-small: 11px;
+
+    out property <int> regular: 400;
+    out property <int> medium: 500;
+    out property <int> emphasized: 650;
+    out property <int> heavy: 800;
+}
+
+// Рух: пружинні криві Expressive (fast/default/slow spatial та effects).
+export global Motion {
+    out property <easing> spatial-fast: cubic-bezier(0.42, 1.67, 0.21, 0.90);
+    out property <easing> spatial: cubic-bezier(0.38, 1.21, 0.22, 1.00);
+    out property <easing> spatial-slow: cubic-bezier(0.39, 1.29, 0.35, 0.98);
+    out property <easing> effects: cubic-bezier(0.31, 0.94, 0.34, 1.00);
+    out property <easing> emphasized: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+
+    out property <duration> fast: 200ms;
+    out property <duration> default: 350ms;
+    out property <duration> slow: 500ms;
+    out property <duration> effects-fast: 150ms;
+    out property <duration> effects-default: 200ms;
+}
+
+// Відступи на сітці 4dp.
+export global Space {
+    out property <length> xs: 4px;
+    out property <length> sm: 8px;
+    out property <length> md: 12px;
+    out property <length> lg: 16px;
+    out property <length> xl: 24px;
+    out property <length> xxl: 32px;
+}
+
+// Набір іконок Material Symbols Rounded.
+export global Icons {
+    out property <image> home: @image-url("icons/home.svg");
+    out property <image> home-fill: @image-url("icons/home-fill.svg");
+    out property <image> calendar: @image-url("icons/calendar-month.svg");
+    out property <image> calendar-fill: @image-url("icons/calendar-month-fill.svg");
+    out property <image> settings: @image-url("icons/settings.svg");
+    out property <image> settings-fill: @image-url("icons/settings-fill.svg");
+    out property <image> bell: @image-url("icons/notifications-active-fill.svg");
+    out property <image> siren: @image-url("icons/e911-emergency-fill.svg");
+    out property <image> all-clear: @image-url("icons/check-circle-fill.svg");
+    out property <image> warning: @image-url("icons/warning-fill.svg");
+    out property <image> offline: @image-url("icons/wifi-off.svg");
+    out property <image> play: @image-url("icons/play-arrow-fill.svg");
+    out property <image> stop: @image-url("icons/stop-fill.svg");
+    out property <image> add: @image-url("icons/add.svg");
+    out property <image> remove: @image-url("icons/remove.svg");
+    out property <image> delete: @image-url("icons/delete.svg");
+    out property <image> volume: @image-url("icons/volume-up-fill.svg");
+    out property <image> refresh: @image-url("icons/refresh.svg");
+    out property <image> location: @image-url("icons/location-on-fill.svg");
+    out property <image> key: @image-url("icons/key-fill.svg");
+    out property <image> timer: @image-url("icons/timer-fill.svg");
+    out property <image> history: @image-url("icons/history.svg");
+    out property <image> dark-mode: @image-url("icons/dark-mode-fill.svg");
+    out property <image> light-mode: @image-url("icons/light-mode-fill.svg");
+    out property <image> auto-mode: @image-url("icons/brightness-auto-fill.svg");
+    out property <image> save: @image-url("icons/save-fill.svg");
+    out property <image> check: @image-url("icons/check.svg");
+    out property <image> close: @image-url("icons/close.svg");
+    out property <image> school: @image-url("icons/school-fill.svg");
+    out property <image> sound: @image-url("icons/graphic-eq.svg");
+    out property <image> clock: @image-url("icons/schedule-fill.svg");
+    out property <image> info: @image-url("icons/info-fill.svg");
+}

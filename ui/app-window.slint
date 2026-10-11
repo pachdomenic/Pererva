@@ -1,8 +1,14 @@
+import { Theme, Type } from "theme.slint";
+
 export component AppWindow inherits Window {
     title: "Шкільні дзвінки";
     preferred-width: 1100px;
     preferred-height: 720px;
+    background: Theme.surface;
+    default-font-family: Type.family;
     Text {
         text: "Шкільні дзвінки";
+        color: Theme.on-surface;
+        font-size: Type.display-small;
     }
 }
