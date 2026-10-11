@@ -78,6 +78,7 @@ component AlertBanner inherits Rectangle {
 }
 
 component ClockCard inherits Card {
+    in property <bool> compact: false;
     kind: CardKind.primary;
     radius: Shape.extra-large-increased;
     min-height: 260px;
@@ -112,7 +113,7 @@ component ClockCard inherits Card {
             Text {
                 text: AppState.clock;
                 color: Theme.on-primary-container;
-                font-size: 112px;
+                font-size: compact ? 80px : 112px;
                 font-weight: Type.heavy;
                 letter-spacing: -3px;
             }
@@ -304,6 +305,7 @@ component NextBellCard inherits Card {
 }
 
 component ActionsCard inherits Card {
+    in property <bool> compact: false;
     kind: CardKind.filled;
     min-height: 180px;
 
@@ -332,17 +334,17 @@ component ActionsCard inherits Card {
 
             Button {
                 horizontal-stretch: 1;
-                text: "Подати дзвінок";
+                text: compact ? "Дзвінок" : "Подати дзвінок";
                 icon: Icons.bell;
-                size: 56px;
+                size: compact ? 48px : 56px;
                 clicked => { AppState.ring-bell(); }
             }
             Button {
                 horizontal-stretch: 1;
-                text: "Зупинити";
+                text: compact ? "Стоп" : "Зупинити";
                 icon: Icons.stop;
                 kind: ButtonKind.outlined;
-                size: 56px;
+                size: compact ? 48px : 56px;
                 enabled: AppState.sound-playing;
                 clicked => { AppState.stop-sound(); }
             }
@@ -535,6 +537,8 @@ export component HomePage {
     ScrollView {
         width: root.width;
         height: root.height;
+        // Лише вертикальне прокручування: вміст підлаштовується під ширину.
+        viewport-width: self.visible-width;
 
         VerticalLayout {
             padding: narrow ? 16px : 24px;
@@ -549,7 +553,7 @@ export component HomePage {
                 ClockCard { horizontal-stretch: 3; }
                 AlertCard { horizontal-stretch: 2; }
             }
-            if narrow: ClockCard { }
+            if narrow: ClockCard { compact: true; }
             if narrow: AlertCard { }
 
             if !narrow: HorizontalLayout {
@@ -559,7 +563,7 @@ export component HomePage {
                 ActionsCard { horizontal-stretch: 1; }
             }
             if narrow: NextBellCard { }
-            if narrow: ActionsCard { }
+            if narrow: ActionsCard { compact: true; }
 
             if !narrow: HorizontalLayout {
                 spacing: 16px;
