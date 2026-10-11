@@ -1,0 +1,202 @@
+// Поверхні: картки, снекбар, заголовки секцій, рядки списків.
+
+import { Theme, Shape, Type, Motion } from "../theme.slint";
+
+export enum CardKind { filled, elevated, outlined, primary, tertiary }
+
+export component Card inherits Rectangle {
+    in property <CardKind> kind: filled;
+    in property <length> radius: Shape.extra-large;
+
+    border-radius: radius;
+    background: kind == CardKind.elevated ? Theme.surface-container-low
+        : kind == CardKind.outlined ? Theme.surface
+        : kind == CardKind.primary ? Theme.primary-container
+        : kind == CardKind.tertiary ? Theme.tertiary-container
+        : Theme.surface-container;
+    border-width: kind == CardKind.outlined ? 1px : 0;
+    border-color: Theme.outline-variant;
+    drop-shadow-color: kind == CardKind.elevated ? Theme.shadow.with-alpha(0.18) : transparent;
+    drop-shadow-blur: 4px;
+    drop-shadow-offset-y: 1px;
+    animate background { duration: Motion.slow; easing: Motion.effects; }
+}
+
+export component SectionHeader {
+    in property <string> text;
+    in property <string> subtitle;
+    in property <image> icon;
+
+    min-height: layout.min-height;
+
+    layout := HorizontalLayout {
+        spacing: 12px;
+
+        if icon.width > 0: Rectangle {
+            width: 40px;
+            height: 40px;
+            y: 0;
+            border-radius: Shape.medium;
+            background: Theme.secondary-container;
+
+            Image {
+                source: icon;
+                width: 22px;
+                height: 22px;
+                colorize: Theme.on-secondary-container;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: text;
+                color: Theme.on-surface;
+                font-size: Type.title-large;
+                font-weight: Type.emphasized;
+            }
+            if subtitle != "": Text {
+                text: subtitle;
+                color: Theme.on-surface-variant;
+                font-size: Type.body-medium;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+// Рядок налаштувань: заголовок, опис і елемент керування праворуч.
+export component SettingRow {
+    in property <string> title;
+    in property <string> description;
+
+    min-height: max(56px, layout.min-height);
+
+    layout := HorizontalLayout {
+        spacing: 16px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+
+            Text {
+                text: title;
+                color: Theme.on-surface;
+                font-size: Type.body-large;
+                font-weight: Type.medium;
+                wrap: word-wrap;
+            }
+            if description != "": Text {
+                text: description;
+                color: Theme.on-surface-variant;
+                font-size: Type.body-medium;
+                wrap: word-wrap;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+
+            @children
+        }
+    }
+}
+
+export component Divider inherits Rectangle {
+    height: 1px;
+    background: Theme.outline-variant;
+}
+
+// Снекбар — коротке повідомлення внизу екрана.
+export component Snackbar {
+    in property <string> text;
+    in property <bool> shown;
+    in property <bool> error: false;
+    callback dismissed;
+
+    height: 56px;
+    opacity: shown ? 1 : 0;
+    animate opacity { duration: Motion.effects-default; }
+
+    Rectangle {
+        y: shown ? 0 : 24px;
+        border-radius: Shape.medium;
+        background: error ? Theme.error-container : Theme.inverse-surface;
+        drop-shadow-color: Theme.shadow.with-alpha(0.3);
+        drop-shadow-blur: 8px;
+        drop-shadow-offset-y: 3px;
+        animate y { duration: Motion.default; easing: Motion.spatial; }
+
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 8px;
+            spacing: 8px;
+
+            Text {
+                text: text;
+                color: error ? Theme.on-error-container : Theme.inverse-on-surface;
+                font-size: Type.body-medium;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+            Rectangle {
+                width: 40px;
+
+                Image {
+                    source: @image-url("../icons/close.svg");
+                    width: 20px;
+                    height: 20px;
+                    colorize: error ? Theme.on-error-container : Theme.inverse-on-surface;
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { dismissed(); }
+                }
+            }
+        }
+    }
+}
+
+// Невеликий бейдж-«пігулка» зі статусом.
+export component Pill {
+    in property <string> text;
+    in property <color> background: Theme.secondary-container;
+    in property <color> foreground: Theme.on-secondary-container;
+    in property <image> icon;
+
+    height: 28px;
+    min-width: layout.min-width;
+
+    Rectangle {
+        border-radius: self.height / 2;
+        background: root.background;
+        animate background { duration: Motion.slow; }
+    }
+
+    layout := HorizontalLayout {
+        padding-left: icon.width > 0 ? 8px : 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        alignment: center;
+
+        if icon.width > 0: Image {
+            source: icon;
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            colorize: foreground;
+        }
+        Text {
+            text: text;
+            color: foreground;
+            font-size: Type.label-large;
+            font-weight: Type.emphasized;
+            vertical-alignment: center;
+        }
+    }
+}
