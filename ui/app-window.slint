@@ -1,14 +1,127 @@
-import { Theme, Type } from "theme.slint";
+// Головне вікно: навігація, сторінки з анімованими переходами і снекбар.
+
+import { Theme, Type, Motion, Icons } from "theme.slint";
+import { AppState, AlertLevel } from "state.slint";
+import { NavigationRail, NavigationBar, NavItem } from "components/navigation.slint";
+import { Fab } from "components/buttons.slint";
+import { Snackbar } from "components/surfaces.slint";
+import { HomePage } from "pages/home.slint";
+import { SchedulePage } from "pages/schedule.slint";
+import { SettingsPage } from "pages/settings.slint";
+
+export { AppState, Theme }
+
+// Обгортка сторінки: зсув і згасання при переході.
+component PageSlot inherits Rectangle {
+    in property <int> index;
+    in property <int> current;
+
+    private property <bool> active: index == current;
+
+    x: active ? 0 : (index < current ? -48px : 48px);
+    opacity: active ? 1 : 0;
+    visible: self.opacity > 0.01;
+    animate x { duration: Motion.default; easing: Motion.spatial; }
+    animate opacity { duration: Motion.effects-default; easing: Motion.effects; }
+}
 
 export component AppWindow inherits Window {
-    title: "Шкільні дзвінки";
-    preferred-width: 1100px;
-    preferred-height: 720px;
+    in-out property <int> page: 0;
+
+    private property <bool> narrow: self.width < 760px;
+    private property <[NavItem]> nav-items: [
+        {
+            label: "Головна",
+            icon: Icons.home,
+            icon-active: Icons.home-fill,
+            badge: AppState.alert-level == AlertLevel.active,
+        },
+        {
+            label: "Розклад",
+            icon: Icons.calendar,
+            icon-active: Icons.calendar-fill,
+            badge: AppState.schedule-dirty,
+        },
+        {
+            label: "Налаштування",
+            icon: Icons.settings,
+            icon-active: Icons.settings-fill,
+            badge: AppState.settings-dirty,
+        },
+    ];
+
+    title: AppState.alert-level == AlertLevel.active ? "Повітряна тривога — Шкільні дзвінки" : "Шкільні дзвінки";
+    icon: @image-url("icons/notifications-active-fill.svg");
+    min-width: 400px;
+    min-height: 560px;
+    preferred-width: 1200px;
+    preferred-height: 860px;
     background: Theme.surface;
     default-font-family: Type.family;
-    Text {
-        text: "Шкільні дзвінки";
-        color: Theme.on-surface;
-        font-size: Type.display-small;
+
+    HorizontalLayout {
+        if !narrow: NavigationRail {
+            items: nav-items;
+            current <=> page;
+
+            Fab {
+                icon: Icons.bell;
+                tertiary: AppState.alert-level != AlertLevel.active;
+                clicked => { AppState.ring-bell(); }
+            }
+        }
+
+        VerticalLayout {
+            Rectangle {
+                vertical-stretch: 1;
+
+                PageSlot {
+                    index: 0;
+                    current: page;
+
+                    HomePage {
+                        width: 100%;
+                        height: 100%;
+                        narrow: narrow;
+                    }
+                }
+                PageSlot {
+                    index: 1;
+                    current: page;
+
+                    SchedulePage {
+                        width: 100%;
+                        height: 100%;
+                        narrow: narrow;
+                    }
+                }
+                PageSlot {
+                    index: 2;
+                    current: page;
+
+                    SettingsPage {
+                        width: 100%;
+                        height: 100%;
+                        narrow: narrow;
+                    }
+                }
+
+                Snackbar {
+                    x: (parent.width - self.width) / 2;
+                    y: parent.height - self.height - (AppState.schedule-dirty || AppState.settings-dirty ? 112px : 24px);
+                    width: min(parent.width - 32px, 560px);
+                    text: AppState.toast;
+                    shown: AppState.toast-shown;
+                    error: AppState.toast-error;
+                    visible: self.opacity > 0.01;
+                    dismissed => { AppState.dismiss-toast(); }
+                }
+            }
+
+            if narrow: NavigationBar {
+                items: nav-items;
+                current <=> page;
+            }
+        }
     }
 }
