@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Шкільні дзвінки
+Name[en]=School Bells
+GenericName=Дзвінки за розкладом
+Comment=Шкільні дзвінки за розкладом з інтеграцією API повітряної тривоги
+Comment[en]=School bell scheduler with Ukrainian air raid alert integration
+Exec=shkilni-dzvinky
+Icon=shkilni-dzvinky
+Terminal=false
+Categories=Education;Utility;
+Keywords=дзвінок;розклад;школа;тривога;сирена;bell;school;alert;
+StartupNotify=true
