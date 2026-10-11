@@ -219,6 +219,8 @@ component AlertCard inherits Card {
                 color: AlertColors.on-container;
                 font-size: Type.body-large;
                 font-weight: Type.medium;
+                // «Район, область» може не вміститися у вузькому вікні.
+                wrap: word-wrap;
             }
         }
         if AppState.alert-since != "": Text {

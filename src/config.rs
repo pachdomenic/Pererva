@@ -1,5 +1,6 @@
 //! Налаштування застосунку, що зберігаються у TOML-файлі.
 
+use crate::alert::regions;
 use crate::schedule::Schedule;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -49,6 +50,9 @@ pub struct AlertConfig {
     pub token: String,
     /// Ідентифікатор області за класифікацією alerts.in.ua (31 — м. Київ).
     pub region_uid: u32,
+    /// Район області (лише для alerts.in.ua). Без нього — тривога по всій області.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub district_uid: Option<u32>,
     /// Інтервал опитування API в секундах.
     pub poll_seconds: u64,
     /// Не подавати шкільні дзвінки під час тривоги.
@@ -66,6 +70,7 @@ impl Default for AlertConfig {
             provider: AlertProvider::default(),
             token: String::new(),
             region_uid: 31,
+            district_uid: None,
             poll_seconds: 20,
             mute_bells_during_alert: true,
             partial_is_alert: false,
@@ -191,6 +196,11 @@ impl Config {
         self.sound.bell_seconds = self.sound.bell_seconds.clamp(1, 60);
         self.sound.siren_seconds = self.sound.siren_seconds.clamp(5, 300);
         self.alert.poll_seconds = self.alert.poll_seconds.clamp(10, 600);
+        // Район з іншої області (або невідомий) не застосовується.
+        let region_uid = self.alert.region_uid;
+        self.alert.district_uid = self.alert.district_uid.filter(|&uid| {
+            regions::district_by_uid(uid).is_some_and(|d| d.region_uid == region_uid)
+        });
         self.schedule.school_days.retain(|d| (1..=7).contains(d));
         self.schedule.school_days.sort_unstable();
         self.schedule.school_days.dedup();
@@ -217,6 +227,7 @@ mod tests {
         config.alert.provider = AlertProvider::AlertsInUa;
         config.alert.token = "token".into();
         config.alert.region_uid = 14;
+        config.alert.district_uid = Some(78);
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
         config.ui.theme = ThemeMode::Dark;
@@ -249,6 +260,23 @@ mod tests {
         );
         assert_eq!(config.sound.volume, 1.0);
         assert_eq!(config.schedule, Schedule::default());
+    }
+
+    #[test]
+    fn district_from_other_region_is_dropped() {
+        let mut config = Config::default();
+        config.alert.region_uid = 14;
+        config.alert.district_uid = Some(78);
+        config.normalize();
+        assert_eq!(config.alert.district_uid, Some(78));
+
+        config.alert.region_uid = 27;
+        config.normalize();
+        assert_eq!(config.alert.district_uid, None);
+
+        config.alert.district_uid = Some(99_999);
+        config.normalize();
+        assert_eq!(config.alert.district_uid, None);
     }
 
     #[test]

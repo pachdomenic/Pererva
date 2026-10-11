@@ -1,6 +1,6 @@
 //! Фонове опитування джерела тривоги.
 
-use super::{AlertSource, AlertStatus, regions, source_for};
+use super::{AlertSource, AlertStatus, Location, source_for};
 use crate::config::AlertConfig;
 use chrono::{DateTime, Local};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -12,7 +12,8 @@ use std::time::Duration;
 pub struct AlertUpdate {
     pub enabled: bool,
     pub status: AlertStatus,
-    pub region: &'static str,
+    /// Назва області або «район, область».
+    pub region: String,
     pub error: Option<String>,
     pub checked_at: DateTime<Local>,
 }
@@ -75,22 +76,22 @@ impl AlertMonitor {
 }
 
 fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
-    let region = regions::by_uid(config.region_uid);
+    let location = Location::from_config(config);
     let mut update = AlertUpdate {
         enabled: config.enabled,
         status: AlertStatus::Unknown,
-        region: region.map_or("Невідома область", |r| r.name),
+        region: location.map_or_else(|| "Невідома область".to_owned(), |l| l.title()),
         error: None,
         checked_at: Local::now(),
     };
     if !config.enabled {
         return update;
     }
-    let Some(region) = region else {
+    let Some(location) = location else {
         update.error = Some("область не вибрано".into());
         return update;
     };
-    match source.fetch(region) {
+    match source.fetch(&location) {
         Ok(status) => update.status = status,
         Err(err) => update.error = Some(err.to_string()),
     }
@@ -100,14 +101,13 @@ fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
 #[cfg(test)]
 mod tests {
     use super::super::FetchError;
-    use super::super::regions::Region;
     use super::*;
     use std::sync::mpsc::Receiver;
 
     struct Fixed(AlertStatus);
 
     impl AlertSource for Fixed {
-        fn fetch(&self, _: &Region) -> Result<AlertStatus, FetchError> {
+        fn fetch(&self, _: &Location) -> Result<AlertStatus, FetchError> {
             Ok(self.0)
         }
     }
@@ -115,7 +115,7 @@ mod tests {
     struct Failing;
 
     impl AlertSource for Failing {
-        fn fetch(&self, _: &Region) -> Result<AlertStatus, FetchError> {
+        fn fetch(&self, _: &Location) -> Result<AlertStatus, FetchError> {
             Err(FetchError::RateLimited)
         }
     }

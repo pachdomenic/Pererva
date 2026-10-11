@@ -32,6 +32,8 @@ export struct SettingsData {
     provider: int,
     token: string,
     region: int,
+    // 0 — уся область, далі — райони з `AppState.districts`.
+    district: int,
     poll-seconds: int,
     mute-bells: bool,
     partial-is-alert: bool,
@@ -90,6 +92,7 @@ export global AppState {
     // Налаштування.
     in-out property <SettingsData> settings;
     in property <[string]> regions;
+    in property <[string]> districts: ["Уся область"];
     in property <[string]> providers: ["alerts.in.ua", "Ubilling"];
     in property <string> config-path;
     in property <bool> settings-dirty;

@@ -135,7 +135,23 @@ export component SettingsPage {
                         leading-icon: Icons.location;
                         container-color: Theme.surface-container;
                         selected(index) => {
-                            AppState.settings.region = index;
+                            if index != AppState.settings.region {
+                                AppState.settings.region = index;
+                                AppState.settings.district = 0;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+
+                    // Тривогу по району повертає лише alerts.in.ua.
+                    if AppState.settings.provider == 0 && AppState.districts.length > 1: Dropdown {
+                        label: "Район";
+                        model: AppState.districts;
+                        current-index: AppState.settings.district;
+                        leading-icon: Icons.location;
+                        container-color: Theme.surface-container;
+                        selected(index) => {
+                            AppState.settings.district = index;
                             AppState.settings-changed();
                         }
                     }
@@ -171,7 +187,7 @@ export component SettingsPage {
                     }
                     SettingRow {
                         title: "Часткова тривога — це тривога";
-                        description: "Реагувати, якщо тривогу оголошено лише в частині громад області";
+                        description: "Реагувати, якщо тривогу оголошено лише в частині громад області чи району";
 
                         Switch {
                             checked: AppState.settings.partial-is-alert;

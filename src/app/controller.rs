@@ -3,11 +3,11 @@
 
 use super::draft::ScheduleDraft;
 use super::format::{countdown, duration_words, long_date, ordinal, relative_day};
-use super::settings::{apply_form, to_form};
-use crate::alert::AlertStatus;
+use super::settings::{apply_form, district_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
-use crate::alert::regions::{self, REGIONS};
+use crate::alert::regions::REGIONS;
 use crate::alert::tracker::{AlertTracker, Transition};
+use crate::alert::{AlertStatus, Location};
 use crate::audio::{Player, Sound};
 use crate::config::{Config, ThemeMode};
 use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm};
@@ -195,6 +195,9 @@ impl Controller {
             state.set_config_path(path.into());
             let names: Vec<SharedString> = REGIONS.iter().map(|r| r.name.into()).collect();
             state.set_regions(ModelRc::new(VecModel::from(names)));
+            state.set_districts(ModelRc::new(VecModel::from(district_names(
+                config.alert.region_uid,
+            ))));
             state.set_settings(to_form(&config));
             state.set_log(ModelRc::from(self.log.clone()));
             state.set_edit_days(ModelRc::from(self.edit_days.clone()));
@@ -425,8 +428,8 @@ impl Controller {
     }
 
     fn render_alert(&self, now: DateTime<Local>) {
-        let region =
-            regions::by_uid(self.config.alert.region_uid).map_or("Область не вибрано", |r| r.name);
+        let location = Location::from_config(&self.config.alert).map(|l| l.title());
+        let region = location.as_deref().unwrap_or("Область не вибрано");
         let provider = self.config.alert.provider.title();
         let tracker = &self.tracker;
 
@@ -772,8 +775,15 @@ impl Controller {
     }
 
     fn settings_changed(&mut self) {
-        let dirty = self.form_config().is_some_and(|c| c != self.config);
-        self.with_window(|w| w.global::<AppState>().set_settings_dirty(dirty));
+        let config = self.form_config();
+        let dirty = config.as_ref().is_some_and(|c| *c != self.config);
+        let region_uid = config.map_or(self.config.alert.region_uid, |c| c.alert.region_uid);
+        self.with_window(|w| {
+            let state = w.global::<AppState>();
+            state.set_settings_dirty(dirty);
+            // Список районів залежить від вибраної у формі області.
+            state.set_districts(ModelRc::new(VecModel::from(district_names(region_uid))));
+        });
     }
 
     fn save_settings(&mut self) {
@@ -786,7 +796,11 @@ impl Controller {
         }
         let alert = self.config.alert.clone();
         if alert != old_alert {
-            if alert.region_uid != old_alert.region_uid || alert.enabled != old_alert.enabled {
+            // Стан тривоги стосується конкретного місця: при його зміні
+            // (область, район або джерело без підтримки районів) починаємо заново.
+            if Location::from_config(&alert) != Location::from_config(&old_alert)
+                || alert.enabled != old_alert.enabled
+            {
                 self.tracker.reset();
                 self.last_update = None;
                 self.last_error = None;

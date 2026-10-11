@@ -7,7 +7,7 @@ pub mod tracker;
 pub mod ubilling;
 
 use crate::config::{AlertConfig, AlertProvider};
-use regions::Region;
+use regions::{District, Region};
 use std::fmt;
 use std::time::Duration;
 
@@ -85,9 +85,45 @@ impl From<ureq::Error> for FetchError {
     }
 }
 
+/// Місце, для якого запитується стан тривоги: область або район області.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Location {
+    pub region: &'static Region,
+    /// Район; `None` — уся область.
+    pub district: Option<&'static District>,
+}
+
+impl Location {
+    /// Місце з налаштувань. Район враховується лише для джерел, що його
+    /// підтримують, і лише якщо він належить вибраній області.
+    pub fn from_config(config: &AlertConfig) -> Option<Self> {
+        let region = regions::by_uid(config.region_uid)?;
+        let district = match config.provider {
+            AlertProvider::AlertsInUa => config
+                .district_uid
+                .and_then(regions::district_by_uid)
+                .filter(|d| d.region_uid == region.uid),
+            AlertProvider::Ubilling => None,
+        };
+        Some(Self { region, district })
+    }
+
+    /// Ідентифікатор alerts.in.ua: району, якщо його вибрано, інакше області.
+    pub fn uid(&self) -> u32 {
+        self.district.map_or(self.region.uid, |d| d.uid)
+    }
+
+    pub fn title(&self) -> String {
+        match self.district {
+            Some(district) => format!("{}, {}", district.name, self.region.name),
+            None => self.region.name.to_owned(),
+        }
+    }
+}
+
 /// Джерело даних про тривогу.
 pub trait AlertSource: Send {
-    fn fetch(&self, region: &Region) -> Result<AlertStatus, FetchError>;
+    fn fetch(&self, location: &Location) -> Result<AlertStatus, FetchError>;
 }
 
 pub(crate) fn http_agent() -> ureq::Agent {
@@ -103,5 +139,44 @@ pub fn source_for(config: &AlertConfig) -> Box<dyn AlertSource> {
     match config.provider {
         AlertProvider::AlertsInUa => Box::new(alerts_in_ua::AlertsInUa::new(config.token.clone())),
         AlertProvider::Ubilling => Box::new(ubilling::Ubilling::new()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(provider: AlertProvider, region_uid: u32, district_uid: Option<u32>) -> AlertConfig {
+        AlertConfig {
+            provider,
+            region_uid,
+            district_uid,
+            ..AlertConfig::default()
+        }
+    }
+
+    #[test]
+    fn location_uses_district_for_alerts_in_ua() {
+        let location =
+            Location::from_config(&config(AlertProvider::AlertsInUa, 14, Some(78))).unwrap();
+        assert_eq!(location.uid(), 78);
+        assert_eq!(location.title(), "Бориспільський район, Київська область");
+    }
+
+    #[test]
+    fn location_ignores_district_for_ubilling() {
+        let location =
+            Location::from_config(&config(AlertProvider::Ubilling, 14, Some(78))).unwrap();
+        assert_eq!(location.district, None);
+        assert_eq!(location.uid(), 14);
+        assert_eq!(location.title(), "Київська область");
+    }
+
+    #[test]
+    fn location_ignores_district_of_other_region() {
+        let location =
+            Location::from_config(&config(AlertProvider::AlertsInUa, 27, Some(78))).unwrap();
+        assert_eq!(location.uid(), 27);
+        assert!(Location::from_config(&config(AlertProvider::AlertsInUa, 1, None)).is_none());
     }
 }

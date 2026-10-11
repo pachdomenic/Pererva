@@ -1,10 +1,11 @@
 //! Клієнт офіційного API [alerts.in.ua](https://alerts.in.ua).
 //!
 //! Використовується легкий IoT-ендпоінт, який повертає один символ:
-//! `A` — тривога в усій області, `P` — у частині громад, `N` — немає.
+//! `A` — тривога в усій області (районі), `P` — у частині громад, `N` — немає.
+//! Ендпоінт приймає ідентифікатор як області, так і району.
 //! Токен можна отримати на <https://devs.alerts.in.ua>.
 
-use super::{AlertSource, AlertStatus, FetchError, http_agent, regions::Region};
+use super::{AlertSource, AlertStatus, FetchError, Location, http_agent};
 
 const BASE_URL: &str = "https://api.alerts.in.ua/v1/iot/active_air_raid_alerts";
 
@@ -23,11 +24,11 @@ impl AlertsInUa {
 }
 
 impl AlertSource for AlertsInUa {
-    fn fetch(&self, region: &Region) -> Result<AlertStatus, FetchError> {
+    fn fetch(&self, location: &Location) -> Result<AlertStatus, FetchError> {
         if self.token.is_empty() {
             return Err(FetchError::MissingToken);
         }
-        let url = format!("{BASE_URL}/{}.json", region.uid);
+        let url = format!("{BASE_URL}/{}.json", location.uid());
         let body = self
             .agent
             .get(&url)
@@ -71,9 +72,12 @@ mod tests {
     #[test]
     fn empty_token_is_reported_without_request() {
         let client = AlertsInUa::new("   ".into());
-        let region = super::super::regions::by_uid(31).unwrap();
+        let location = Location {
+            region: super::super::regions::by_uid(31).unwrap(),
+            district: None,
+        };
         assert!(matches!(
-            client.fetch(region),
+            client.fetch(&location),
             Err(FetchError::MissingToken)
         ));
     }
