@@ -1,0 +1,58 @@
+# Приклад файлу налаштувань «Шкільних дзвінків».
+#
+# Програма створює файл сама при першому збереженні налаштувань:
+#   Linux:   ~/.config/shkilni-dzvinky/config.toml
+#   Windows: %APPDATA%\shkilni-dzvinky\config.toml
+#   macOS:   ~/Library/Application Support/shkilni-dzvinky/config.toml
+# Інший шлях можна вказати параметром --config.
+# Усі поля необов'язкові: пропущені беруться з типових значень.
+
+[schedule]
+# Навчальні дні: 1 — понеділок … 7 — неділя.
+school_days = [1, 2, 3, 4, 5]
+# Попереджувальний дзвінок за N хвилин до уроку (0 — вимкнено, максимум 30).
+warning_minutes = 0
+# Уроки у форматі ГГ:ХХ. Дзвінок подається на початку і в кінці кожного уроку.
+lessons = [
+    { start = "08:30", end = "09:15" },
+    { start = "09:25", end = "10:10" },
+    { start = "10:30", end = "11:15" },
+    { start = "11:35", end = "12:20" },
+    { start = "12:30", end = "13:15" },
+    { start = "13:25", end = "14:10" },
+    { start = "14:20", end = "15:05" },
+]
+
+[alert]
+# Стежити за повітряною тривогою.
+enabled = true
+# Джерело даних: "ubilling" (без токена) або "alerts-in-ua" (потрібен токен).
+provider = "ubilling"
+# Токен API alerts.in.ua (https://devs.alerts.in.ua).
+token = ""
+# Область за класифікацією alerts.in.ua: 31 — м. Київ, 14 — Київська, 27 — Львівська,
+# 22 — Харківська, 18 — Одеська, 9 — Дніпропетровська… Повний список — у README.
+region_uid = 31
+# Інтервал опитування в секундах (10–600).
+poll_seconds = 20
+# Не подавати шкільні дзвінки під час тривоги.
+mute_bells_during_alert = true
+# Вважати тривогою оголошення лише в частині громад області.
+partial_is_alert = false
+# Подавати сигнал відбою після завершення тривоги.
+play_all_clear = true
+
+[sound]
+# Гучність від 0.0 до 1.0.
+volume = 0.8
+# Тривалість шкільного дзвінка (1–60 с) і сирени (5–300 с).
+bell_seconds = 5
+siren_seconds = 30
+# Власні аудіофайли (WAV, MP3, FLAC, OGG). Без них звучать вбудовані звуки.
+# bell_file = "/home/school/sounds/bell.mp3"
+# siren_file = "/home/school/sounds/siren.wav"
+# all_clear_file = "/home/school/sounds/all-clear.ogg"
+
+[ui]
+# Тема: "system", "light" або "dark".
+theme = "system"

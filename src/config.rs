@@ -260,6 +260,15 @@ mod tests {
     }
 
     #[test]
+    fn example_config_is_valid() {
+        let config: Config = toml::from_str(include_str!("../config.example.toml")).unwrap();
+        assert_eq!(config.schedule.validate(), Ok(()));
+        assert_eq!(config.schedule, Schedule::default());
+        assert_eq!(config.alert, AlertConfig::default());
+        assert_eq!(config.sound, SoundConfig::default());
+    }
+
+    #[test]
     fn invalid_schedule_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
