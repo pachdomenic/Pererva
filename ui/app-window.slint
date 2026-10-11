@@ -28,7 +28,10 @@ component PageSlot inherits Rectangle {
 export component AppWindow inherits Window {
     in-out property <int> page: 0;
 
-    private property <bool> narrow: self.width < 760px;
+    // Оновлюється з обробника зміни ширини, а не прив'язкою: інакше виникає
+    // петля «ширина вікна → narrow → мінімальна ширина вмісту → ширина вікна».
+    private property <bool> narrow: false;
+    changed width => { narrow = self.width < 760px; }
     private property <[NavItem]> nav-items: [
         {
             label: "Головна",
