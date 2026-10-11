@@ -1,8 +1,9 @@
 //! Налаштування застосунку, що зберігаються у TOML-файлі.
 
 use crate::alert::regions;
-use crate::schedule::Schedule;
+use crate::schedule::{Schedule, hhmm};
 use anyhow::{Context, Result};
+use chrono::{NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -79,6 +80,54 @@ impl Default for AlertConfig {
     }
 }
 
+/// Щоденна загальнонаціональна хвилина мовчання і державний гімн після неї.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MemorialConfig {
+    pub enabled: bool,
+    /// Час початку хвилини мовчання.
+    #[serde(with = "hhmm")]
+    pub time: NaiveTime,
+    /// Лише в навчальні дні з розкладу; інакше — щодня.
+    pub school_days_only: bool,
+    /// Після хвилини мовчання подавати гімн (потрібен файл `anthem_file`).
+    pub anthem: bool,
+}
+
+impl Default for MemorialConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            time: NaiveTime::from_hms_opt(9, 0, 0).expect("коректний час"),
+            school_days_only: false,
+            anthem: true,
+        }
+    }
+}
+
+impl MemorialConfig {
+    /// Момент хвилини мовчання в напіввідкритому інтервалі `(from, to]`.
+    pub fn due_between(
+        &self,
+        from: NaiveDateTime,
+        to: NaiveDateTime,
+        schedule: &Schedule,
+    ) -> Option<NaiveDateTime> {
+        if !self.enabled || to <= from {
+            return None;
+        }
+        let mut date = from.date();
+        while date <= to.date() {
+            let at = date.and_time(self.time);
+            if at > from && at <= to && (!self.school_days_only || schedule.is_school_day(date)) {
+                return Some(at);
+            }
+            date = date.succ_opt()?;
+        }
+        None
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SoundConfig {
@@ -92,6 +141,10 @@ pub struct SoundConfig {
     pub bell_file: Option<PathBuf>,
     pub siren_file: Option<PathBuf>,
     pub all_clear_file: Option<PathBuf>,
+    /// Звукова доріжка хвилини мовчання; без неї — вбудований метроном.
+    pub silence_file: Option<PathBuf>,
+    /// Звукова доріжка державного гімну.
+    pub anthem_file: Option<PathBuf>,
 }
 
 impl Default for SoundConfig {
@@ -103,6 +156,8 @@ impl Default for SoundConfig {
             bell_file: None,
             siren_file: None,
             all_clear_file: None,
+            silence_file: None,
+            anthem_file: None,
         }
     }
 }
@@ -146,6 +201,7 @@ pub struct UiConfig {
 pub struct Config {
     pub schedule: Schedule,
     pub alert: AlertConfig,
+    pub memorial: MemorialConfig,
     pub sound: SoundConfig,
     pub ui: UiConfig,
 }
@@ -231,6 +287,9 @@ mod tests {
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
         config.ui.theme = ThemeMode::Dark;
+        config.memorial.time = NaiveTime::from_hms_opt(9, 30, 0).unwrap();
+        config.memorial.anthem = false;
+        config.sound.anthem_file = Some("/tmp/anthem.mp3".into());
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
     }
@@ -294,6 +353,60 @@ mod tests {
         assert_eq!(config.schedule, Schedule::default());
         assert_eq!(config.alert, AlertConfig::default());
         assert_eq!(config.sound, SoundConfig::default());
+        assert_eq!(config.memorial, MemorialConfig::default());
+    }
+
+    fn at(day: u32, h: u32, m: u32) -> NaiveDateTime {
+        // 2026-10-12 — понеділок, 2026-10-17 — субота.
+        chrono::NaiveDate::from_ymd_opt(2026, 10, day)
+            .unwrap()
+            .and_hms_opt(h, m, 0)
+            .unwrap()
+    }
+
+    #[test]
+    fn memorial_is_due_once_at_its_time() {
+        let memorial = MemorialConfig::default();
+        let schedule = Schedule::default();
+        assert_eq!(
+            memorial.due_between(at(12, 8, 59), at(12, 9, 0), &schedule),
+            Some(at(12, 9, 0))
+        );
+        assert_eq!(
+            memorial.due_between(at(12, 9, 0), at(12, 9, 1), &schedule),
+            None
+        );
+        assert_eq!(
+            memorial.due_between(at(12, 10, 0), at(13, 8, 0), &schedule),
+            None
+        );
+    }
+
+    #[test]
+    fn memorial_days_and_switch() {
+        let schedule = Schedule::default();
+        let mut memorial = MemorialConfig::default();
+        let saturday = (at(17, 8, 59), at(17, 9, 0));
+        assert!(
+            memorial
+                .due_between(saturday.0, saturday.1, &schedule)
+                .is_some()
+        );
+
+        memorial.school_days_only = true;
+        assert!(
+            memorial
+                .due_between(saturday.0, saturday.1, &schedule)
+                .is_none()
+        );
+
+        memorial.school_days_only = false;
+        memorial.enabled = false;
+        assert!(
+            memorial
+                .due_between(saturday.0, saturday.1, &schedule)
+                .is_none()
+        );
     }
 
     #[test]

@@ -46,6 +46,16 @@ partial_is_alert = false
 # Подавати сигнал відбою після завершення тривоги.
 play_all_clear = true
 
+[memorial]
+# Щоденна загальнонаціональна хвилина мовчання, після неї — державний гімн.
+enabled = true
+# Час початку хвилини мовчання.
+time = "09:00"
+# true — лише в навчальні дні з розкладу, false — щодня.
+school_days_only = false
+# Подавати гімн після хвилини мовчання (потрібен файл anthem_file у [sound]).
+anthem = true
+
 [sound]
 # Гучність від 0.0 до 1.0.
 volume = 0.8
@@ -56,6 +66,10 @@ siren_seconds = 30
 # bell_file = "/home/school/sounds/bell.mp3"
 # siren_file = "/home/school/sounds/siren.wav"
 # all_clear_file = "/home/school/sounds/all-clear.ogg"
+# Окремі доріжки для хвилини мовчання і гімну. Без файлу хвилини мовчання
+# звучить вбудований метроном (60 с); без файлу гімну гімн не подається.
+# silence_file = "/home/school/sounds/minute-of-silence.mp3"
+# anthem_file = "/home/school/sounds/anthem.mp3"
 
 [ui]
 # Тема: "system", "light" або "dark".

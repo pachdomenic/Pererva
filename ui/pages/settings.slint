@@ -13,6 +13,7 @@ component SoundFileRow {
     in property <string> label;
     in property <string> path;
     in property <int> sound;
+    in property <string> placeholder: "Вбудований звук";
     callback edited(string);
 
     min-height: 56px;
@@ -23,7 +24,7 @@ component SoundFileRow {
         TextField {
             horizontal-stretch: 1;
             label: label;
-            placeholder: "Вбудований звук";
+            placeholder: placeholder;
             text: path;
             container-color: Theme.surface-container;
             edited(text) => { root.edited(text); }
@@ -207,6 +208,101 @@ export component SettingsPage {
                                 AppState.settings.play-all-clear = value;
                                 AppState.settings-changed();
                             }
+                        }
+                    }
+                }
+            }
+
+            // Хвилина мовчання і гімн.
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+
+                    SectionHeader {
+                        text: "Хвилина мовчання";
+                        subtitle: "Щоденне вшанування загиблих, після нього — державний гімн";
+                        icon: Icons.flag;
+                    }
+
+                    SettingRow {
+                        title: "Подавати хвилину мовчання";
+                        description: "Метроном протягом хвилини або власна доріжка";
+
+                        Switch {
+                            checked: AppState.settings.memorial-enabled;
+                            toggled(value) => {
+                                AppState.settings.memorial-enabled = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Час";
+                        description: "Загальнонаціональна хвилина мовчання — о 09:00";
+
+                        TextField {
+                            width: 112px;
+                            label: "ГГ:ХХ";
+                            centered: true;
+                            text: AppState.settings.memorial-time;
+                            error: !AppState.memorial-time-valid;
+                            container-color: Theme.surface-container;
+                            edited(text) => {
+                                AppState.settings.memorial-time = text;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Лише в навчальні дні";
+                        description: "Інакше — щодня, включно з вихідними";
+
+                        Switch {
+                            checked: AppState.settings.memorial-school-days;
+                            toggled(value) => {
+                                AppState.settings.memorial-school-days = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Гімн після хвилини мовчання";
+                        description: AppState.settings.anthem-file == ""
+                            ? "Вкажіть файл гімну нижче, інакше гімн не прозвучить"
+                            : "Звучить одразу після хвилини мовчання";
+
+                        Switch {
+                            checked: AppState.settings.memorial-anthem;
+                            toggled(value) => {
+                                AppState.settings.memorial-anthem = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    Divider { }
+
+                    Rectangle { height: 4px; }
+
+                    SoundFileRow {
+                        label: "Доріжка хвилини мовчання";
+                        path: AppState.settings.silence-file;
+                        sound: 3;
+                        edited(text) => {
+                            AppState.settings.silence-file = text;
+                            AppState.settings-changed();
+                        }
+                    }
+                    SoundFileRow {
+                        label: "Доріжка гімну";
+                        placeholder: "Файл не вибрано";
+                        path: AppState.settings.anthem-file;
+                        sound: 4;
+                        edited(text) => {
+                            AppState.settings.anthem-file = text;
+                            AppState.settings-changed();
                         }
                     }
                 }

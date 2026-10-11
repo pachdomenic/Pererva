@@ -3,6 +3,7 @@
 use crate::SettingsData;
 use crate::alert::regions::{self, REGIONS};
 use crate::config::{AlertProvider, Config, ThemeMode};
+use crate::schedule::{format_hhmm, parse_hhmm};
 use std::path::PathBuf;
 
 fn path_to_string(path: &Option<PathBuf>) -> slint::SharedString {
@@ -51,6 +52,12 @@ pub fn to_form(config: &Config) -> SettingsData {
         bell_file: path_to_string(&config.sound.bell_file),
         siren_file: path_to_string(&config.sound.siren_file),
         all_clear_file: path_to_string(&config.sound.all_clear_file),
+        memorial_enabled: config.memorial.enabled,
+        memorial_time: format_hhmm(config.memorial.time).into(),
+        memorial_school_days: config.memorial.school_days_only,
+        memorial_anthem: config.memorial.anthem,
+        silence_file: path_to_string(&config.sound.silence_file),
+        anthem_file: path_to_string(&config.sound.anthem_file),
         theme: config.ui.theme.index(),
     }
 }
@@ -82,6 +89,15 @@ pub fn apply_form(base: &Config, form: &SettingsData) -> Config {
     sound.bell_file = string_to_path(&form.bell_file);
     sound.siren_file = string_to_path(&form.siren_file);
     sound.all_clear_file = string_to_path(&form.all_clear_file);
+    sound.silence_file = string_to_path(&form.silence_file);
+    sound.anthem_file = string_to_path(&form.anthem_file);
+
+    let memorial = &mut config.memorial;
+    memorial.enabled = form.memorial_enabled;
+    // Неправильно введений час не застосовується (поле підсвічується в інтерфейсі).
+    memorial.time = parse_hhmm(&form.memorial_time).unwrap_or(memorial.time);
+    memorial.school_days_only = form.memorial_school_days;
+    memorial.anthem = form.memorial_anthem;
 
     config.ui.theme = ThemeMode::from_index(form.theme);
     config.normalize();
@@ -99,6 +115,9 @@ mod tests {
         config.alert.region_uid = 27;
         config.alert.district_uid = Some(90);
         config.sound.siren_file = Some("/tmp/siren.mp3".into());
+        config.sound.anthem_file = Some("/tmp/anthem.ogg".into());
+        config.memorial.time = chrono::NaiveTime::from_hms_opt(9, 5, 0).unwrap();
+        config.memorial.school_days_only = true;
         config.ui.theme = ThemeMode::Dark;
         assert_eq!(apply_form(&config, &to_form(&config)), config);
     }
@@ -148,6 +167,23 @@ mod tests {
         assert_eq!(apply_form(&config, &form).alert.district_uid, None);
         form.district = 999;
         assert_eq!(apply_form(&config, &form).alert.district_uid, None);
+    }
+
+    #[test]
+    fn memorial_time_is_parsed() {
+        let config = Config::default();
+        let mut form = to_form(&config);
+        assert_eq!(form.memorial_time, "09:00");
+        form.memorial_time = " 9:30 ".into();
+        assert_eq!(
+            apply_form(&config, &form).memorial.time,
+            parse_hhmm("09:30").unwrap()
+        );
+        form.memorial_time = "дев'ята".into();
+        assert_eq!(
+            apply_form(&config, &form).memorial.time,
+            config.memorial.time
+        );
     }
 
     #[test]

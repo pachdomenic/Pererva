@@ -19,7 +19,7 @@ export struct EditLesson {
     end-error: bool,
 }
 
-export enum LogKind { info, bell, alert, all-clear, error }
+export enum LogKind { info, bell, alert, all-clear, error, memorial }
 
 export struct LogEntry {
     time: string,
@@ -44,6 +44,12 @@ export struct SettingsData {
     bell-file: string,
     siren-file: string,
     all-clear-file: string,
+    memorial-enabled: bool,
+    memorial-time: string,
+    memorial-school-days: bool,
+    memorial-anthem: bool,
+    silence-file: string,
+    anthem-file: string,
     theme: int,
 }
 
@@ -96,6 +102,7 @@ export global AppState {
     in property <[string]> providers: ["alerts.in.ua", "Ubilling"];
     in property <string> config-path;
     in property <bool> settings-dirty;
+    in property <bool> memorial-time-valid: true;
 
     // Повідомлення.
     in property <string> toast;
@@ -108,6 +115,7 @@ export global AppState {
     callback stop-sound();
     callback refresh-alert();
     callback toggle-drill();
+    callback start-memorial();
 
     callback lesson-edited(int, bool, string);
     callback add-lesson();

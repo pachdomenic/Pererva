@@ -371,6 +371,12 @@ component ActionsCard inherits Card {
             }
         }
         Button {
+            text: "Хвилина мовчання";
+            icon: Icons.flag;
+            kind: ButtonKind.tonal;
+            clicked => { AppState.start-memorial(); }
+        }
+        Button {
             text: AppState.drill-active ? "Завершити навчальну тривогу" : "Навчальна тривога";
             icon: AppState.drill-active ? Icons.all-clear : Icons.school;
             kind: AppState.drill-active ? ButtonKind.filled : ButtonKind.outlined;
@@ -506,6 +512,7 @@ component LogCard inherits Card {
                     : entry.kind == LogKind.all-clear ? Theme.success-container
                     : entry.kind == LogKind.error ? Theme.error-container
                     : entry.kind == LogKind.bell ? Theme.tertiary-container
+                    : entry.kind == LogKind.memorial ? Theme.primary-container
                     : Theme.secondary-container;
 
                 Image {
@@ -513,12 +520,14 @@ component LogCard inherits Card {
                         : entry.kind == LogKind.all-clear ? Icons.all-clear
                         : entry.kind == LogKind.error ? Icons.warning
                         : entry.kind == LogKind.bell ? Icons.bell
+                        : entry.kind == LogKind.memorial ? Icons.flag
                         : Icons.info;
                     width: 18px;
                     height: 18px;
                     colorize: entry.kind == LogKind.alert || entry.kind == LogKind.error ? Theme.on-error-container
                         : entry.kind == LogKind.all-clear ? Theme.on-success-container
                         : entry.kind == LogKind.bell ? Theme.on-tertiary-container
+                        : entry.kind == LogKind.memorial ? Theme.on-primary-container
                         : Theme.on-secondary-container;
                 }
             }

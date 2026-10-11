@@ -10,7 +10,7 @@ use crate::alert::tracker::{AlertTracker, Transition};
 use crate::alert::{AlertStatus, Location};
 use crate::audio::{Player, Sound};
 use crate::config::{Config, ThemeMode};
-use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm};
+use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm, parse_hhmm};
 use crate::{
     AlertLevel, AppState, AppWindow, EditLesson, LessonRow, LessonState, LogEntry, LogKind, Theme,
 };
@@ -54,6 +54,9 @@ pub struct Controller {
     edit_days: Rc<VecModel<bool>>,
     today: Vec<LessonRow>,
     toast_until: Option<Instant>,
+    /// Коли востаннє почалася хвилина мовчання (поки програвач не підтвердив
+    /// відтворення, дзвінки все одно не подаються).
+    memorial_started: Option<Instant>,
 }
 
 /// Створює вікно, запускає фонові потоки і цикл подій.
@@ -91,6 +94,7 @@ pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
         edit_days: Rc::new(VecModel::default()),
         today: Vec::new(),
         toast_until: None,
+        memorial_started: None,
     }));
     controller.borrow_mut().init(load_error);
     bind_callbacks(&window, &controller);
@@ -128,6 +132,7 @@ fn bind_callbacks(window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
     state.on_stop_sound(action(controller, |c| c.player.stop()));
     state.on_refresh_alert(action(controller, |c| c.monitor.refresh()));
     state.on_toggle_drill(action(controller, Controller::toggle_drill));
+    state.on_start_memorial(action(controller, |c| c.start_memorial(true)));
 
     state.on_add_lesson(action(controller, Controller::add_lesson));
     state.on_schedule_changed(action(controller, Controller::schedule_changed));
@@ -235,6 +240,14 @@ impl Controller {
         let naive = now.naive_local();
         if naive > self.last_tick {
             if (naive - self.last_tick).num_seconds() <= MAX_CATCH_UP_SECONDS {
+                let config = &self.config;
+                if config
+                    .memorial
+                    .due_between(self.last_tick, naive, &config.schedule)
+                    .is_some()
+                {
+                    self.start_memorial(false);
+                }
                 for event in self.config.schedule.events_between(self.last_tick, naive) {
                     self.on_bell(&event);
                 }
@@ -273,6 +286,13 @@ impl Controller {
         let text = bell_text(event);
         if self.bells_muted() {
             self.add_log(LogKind::Info, format!("{text} — пропущено через тривогу"));
+            return;
+        }
+        if self.memorial_active() {
+            self.add_log(
+                LogKind::Info,
+                format!("{text} — пропущено через хвилину мовчання"),
+            );
             return;
         }
         let mut sound = self.config.sound.clone();
@@ -595,6 +615,45 @@ impl Controller {
         );
     }
 
+    fn memorial_active(&self) -> bool {
+        self.player.memorial_playing()
+            || self
+                .memorial_started
+                .is_some_and(|start| start.elapsed() < StdDuration::from_secs(1))
+    }
+
+    /// Хвилина мовчання, а після неї — гімн (якщо увімкнено і вибрано файл).
+    /// За розкладом не подається під час тривоги, якщо тоді вимкнено дзвінки.
+    fn start_memorial(&mut self, manual: bool) {
+        if !manual && self.bells_muted() {
+            self.add_log(
+                LogKind::Info,
+                "Хвилину мовчання пропущено через тривогу".into(),
+            );
+            return;
+        }
+        let mut sounds = vec![Sound::Silence];
+        let anthem_missing = self.config.memorial.anthem && self.config.sound.anthem_file.is_none();
+        if self.config.memorial.anthem && !anthem_missing {
+            sounds.push(Sound::Anthem);
+        }
+        let text = match (manual, sounds.len()) {
+            (false, 1) => "Хвилина мовчання",
+            (false, _) => "Хвилина мовчання і гімн України",
+            (true, 1) => "Хвилину мовчання розпочато вручну",
+            (true, _) => "Хвилину мовчання і гімн розпочато вручну",
+        };
+        self.player.play_sequence(sounds, &self.config.sound);
+        self.memorial_started = Some(Instant::now());
+        self.add_log(LogKind::Memorial, text.into());
+        if anthem_missing {
+            self.add_log(
+                LogKind::Info,
+                "Гімн не подано: у налаштуваннях не вибрано файл гімну".into(),
+            );
+        }
+    }
+
     /// Починає або завершує навчальну тривогу (тренування евакуації).
     fn toggle_drill(&mut self) {
         match self.drill.take() {
@@ -618,6 +677,8 @@ impl Controller {
         let sound = match index {
             0 => Sound::Bell,
             1 => Sound::Siren,
+            3 => Sound::Silence,
+            4 => Sound::Anthem,
             _ => Sound::AllClear,
         };
         // Прослуховування з налаштувань форми, навіть не збережених.
@@ -774,19 +835,33 @@ impl Controller {
         ))
     }
 
+    /// Чи коректно введено час хвилини мовчання у формі.
+    fn memorial_time_valid(&self) -> bool {
+        self.window.upgrade().is_none_or(|w| {
+            parse_hhmm(&w.global::<AppState>().get_settings().memorial_time).is_some()
+        })
+    }
+
     fn settings_changed(&mut self) {
         let config = self.form_config();
-        let dirty = config.as_ref().is_some_and(|c| *c != self.config);
+        let time_valid = self.memorial_time_valid();
+        // Неправильний час теж вважається зміною, щоб було видно панель збереження.
+        let dirty = !time_valid || config.as_ref().is_some_and(|c| *c != self.config);
         let region_uid = config.map_or(self.config.alert.region_uid, |c| c.alert.region_uid);
         self.with_window(|w| {
             let state = w.global::<AppState>();
             state.set_settings_dirty(dirty);
+            state.set_memorial_time_valid(time_valid);
             // Список районів залежить від вибраної у формі області.
             state.set_districts(ModelRc::new(VecModel::from(district_names(region_uid))));
         });
     }
 
     fn save_settings(&mut self) {
+        if !self.memorial_time_valid() {
+            self.show_toast("Час хвилини мовчання — у форматі ГГ:ХХ", true);
+            return;
+        }
         let Some(config) = self.form_config() else {
             return;
         };
@@ -812,6 +887,7 @@ impl Controller {
             let state = w.global::<AppState>();
             state.set_settings(form);
             state.set_settings_dirty(false);
+            state.set_memorial_time_valid(true);
         });
         self.add_log(LogKind::Info, "Налаштування змінено".into());
         self.show_toast("Налаштування збережено", false);

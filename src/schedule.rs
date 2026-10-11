@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Серіалізація часу у форматі `ГГ:ХХ`.
-mod hhmm {
+pub(crate) mod hhmm {
     use chrono::NaiveTime;
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 

@@ -4,7 +4,9 @@
 //!   ~18 разів на секунду, чаша звучить набором негармонічних обертонів;
 //! - сирена повітряної тривоги — механічна сирена, що розкручується,
 //!   завиває (плавно піднімає і опускає тон) і зупиняється;
-//! - відбій — спокійний висхідний триголосий передзвін.
+//! - відбій — спокійний висхідний триголосий передзвін;
+//! - хвилина мовчання — тихий метроном щосекунди, обрамлений м'якими
+//!   ударами гонга на початку і в кінці хвилини.
 
 use rodio::Source;
 use rodio::source::SeekError;
@@ -16,11 +18,15 @@ pub const SAMPLE_RATE: u32 = 44_100;
 /// Тривалість сигналу відбою.
 pub const ALL_CLEAR_SECONDS: f64 = 4.8;
 
+/// Тривалість хвилини мовчання разом із загасанням завершального гонга.
+pub const SILENCE_SECONDS: f64 = 63.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SynthKind {
     Bell,
     Siren,
     AllClear,
+    Silence,
 }
 
 /// Нескінченне джерело звуку обмеженої тривалості.
@@ -58,6 +64,10 @@ impl Synth {
         )
     }
 
+    pub fn silence() -> Self {
+        Self::new(SynthKind::Silence, Duration::from_secs_f64(SILENCE_SECONDS))
+    }
+
     fn duration_secs(&self) -> f64 {
         self.total as f64 / f64::from(SAMPLE_RATE)
     }
@@ -75,6 +85,7 @@ impl Iterator for Synth {
         let sample = match self.kind {
             SynthKind::Bell => bell(t, length),
             SynthKind::AllClear => all_clear(t),
+            SynthKind::Silence => silence(t, length),
             SynthKind::Siren => {
                 let freq = siren_frequency(t, length);
                 self.phase = (self.phase + TAU * freq / f64::from(SAMPLE_RATE)) % TAU;
@@ -215,6 +226,35 @@ fn all_clear(t: f64) -> f64 {
     sum * 0.45 * edges(t, ALL_CLEAR_SECONDS, 0.05)
 }
 
+/// Тривалість самої хвилини: гонг на 0-й і 60-й секунді, між ними — метроном.
+const MINUTE: f64 = 60.0;
+
+fn silence(t: f64, length: f64) -> f64 {
+    let second = t.floor();
+    let tick = if (1.0..MINUTE).contains(&second) {
+        metronome(t - second)
+    } else {
+        0.0
+    };
+    let gong = gong(t) + if t >= MINUTE { gong(t - MINUTE) } else { 0.0 };
+    (tick + gong) * edges(t, length, 0.05)
+}
+
+/// Короткий дерев'яний «тік» метронома.
+fn metronome(dt: f64) -> f64 {
+    let body = (TAU * 1_800.0 * dt).sin() * (-dt * 90.0).exp();
+    let knock = (TAU * 900.0 * dt).sin() * (-dt * 60.0).exp();
+    (body + 0.5 * knock) * 0.25
+}
+
+/// М'який удар гонга: дві ноти з довгим загасанням.
+fn gong(dt: f64) -> f64 {
+    let env = (dt / 0.02).min(1.0) * (-dt * 1.4).exp();
+    let tone =
+        (TAU * 392.0 * dt).sin() + 0.6 * (TAU * 587.33 * dt).sin() + 0.2 * (TAU * 784.0 * dt).sin();
+    tone * env * 0.3
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,6 +290,25 @@ mod tests {
             let samples = render(synth);
             assert!(samples[0].abs() < 1e-3);
             assert!(samples.last().unwrap().abs() < 1e-2);
+        }
+    }
+
+    #[test]
+    fn silence_lasts_a_minute_with_ticks() {
+        let samples = render(Synth::silence());
+        let rate = SAMPLE_RATE as usize;
+        assert_eq!(samples.len(), SILENCE_SECONDS as usize * rate);
+        assert!(samples.iter().all(|s| s.is_finite() && s.abs() <= 1.0));
+        assert!(samples[0].abs() < 1e-3);
+        assert!(samples.last().unwrap().abs() < 1e-2);
+        // Гонг на початку і в кінці хвилини.
+        assert!(rms(&samples[..rate / 2]) > 0.05);
+        assert!(rms(&samples[60 * rate..60 * rate + rate / 2]) > 0.05);
+        // Посередині — короткі «тіки» на початку кожної секунди і тиша між ними.
+        for second in [10, 30, 59] {
+            let start = second * rate;
+            assert!(rms(&samples[start..start + rate / 50]) > 0.02);
+            assert!(rms(&samples[start + rate / 2..start + rate]) < 1e-3);
         }
     }
 
