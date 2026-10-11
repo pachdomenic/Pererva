@@ -61,14 +61,15 @@ component AlertBanner inherits Rectangle {
             spacing: 4px;
 
             Text {
-                text: "ПОВІТРЯНА ТРИВОГА";
+                text: AppState.drill-active ? "НАВЧАЛЬНА ТРИВОГА" : "ПОВІТРЯНА ТРИВОГА";
                 color: Theme.on-error;
                 font-size: Type.headline-medium;
                 font-weight: Type.heavy;
                 letter-spacing: 1px;
             }
             Text {
-                text: "Негайно пройдіть до укриття." + (AppState.bells-muted ? " Шкільні дзвінки вимкнено до відбою." : "");
+                text: (AppState.drill-active ? "Тренування: пройдіть до укриття." : "Негайно пройдіть до укриття.")
+                    + (AppState.bells-muted ? " Шкільні дзвінки вимкнено до відбою." : "");
                 color: Theme.on-error;
                 font-size: Type.body-large;
                 wrap: word-wrap;
@@ -366,6 +367,12 @@ component ActionsCard inherits Card {
                 kind: ButtonKind.tonal;
                 clicked => { AppState.test-all-clear(); }
             }
+        }
+        Button {
+            text: AppState.drill-active ? "Завершити навчальну тривогу" : "Навчальна тривога";
+            icon: AppState.drill-active ? Icons.all-clear : Icons.school;
+            kind: AppState.drill-active ? ButtonKind.filled : ButtonKind.outlined;
+            clicked => { AppState.toggle-drill(); }
         }
     }
 }

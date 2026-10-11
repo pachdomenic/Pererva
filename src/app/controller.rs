@@ -45,6 +45,8 @@ pub struct Controller {
     tracker: AlertTracker,
     last_update: Option<AlertUpdate>,
     last_error: Option<String>,
+    /// Час початку навчальної тривоги, якщо вона триває.
+    drill: Option<DateTime<Local>>,
     last_tick: NaiveDateTime,
     draft: ScheduleDraft,
     log: Rc<VecModel<LogEntry>>,
@@ -82,6 +84,7 @@ pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
         tracker: AlertTracker::default(),
         last_update: None,
         last_error: None,
+        drill: None,
         last_tick: Local::now().naive_local(),
         log: Rc::new(VecModel::default()),
         edit_lessons: Rc::new(VecModel::default()),
@@ -124,6 +127,7 @@ fn bind_callbacks(window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
     state.on_test_all_clear(action(controller, |c| c.play_manually(Sound::AllClear)));
     state.on_stop_sound(action(controller, |c| c.player.stop()));
     state.on_refresh_alert(action(controller, |c| c.monitor.refresh()));
+    state.on_toggle_drill(action(controller, Controller::toggle_drill));
 
     state.on_add_lesson(action(controller, Controller::add_lesson));
     state.on_schedule_changed(action(controller, Controller::schedule_changed));
@@ -259,9 +263,8 @@ impl Controller {
     }
 
     fn bells_muted(&self) -> bool {
-        self.config.alert.enabled
-            && self.config.alert.mute_bells_during_alert
-            && self.tracker.is_active()
+        let real_alert = self.config.alert.enabled && self.tracker.is_active();
+        self.config.alert.mute_bells_during_alert && (real_alert || self.drill.is_some())
     }
 
     fn on_bell(&mut self, event: &BellEvent) {
@@ -476,7 +479,20 @@ impl Controller {
             }
         };
 
-        let since = if let Some(start) = tracker.started_at() {
+        // Навчальна тривога має пріоритет у відображенні.
+        let (level, title, region, detail, error, started) = match self.drill {
+            Some(start) => (
+                AlertLevel::Active,
+                "Навчальна тривога",
+                "Тренування евакуації",
+                "Завершіть її кнопкою «Завершити навчальну тривогу»".to_owned(),
+                false,
+                Some(start),
+            ),
+            None => (level, title, region, detail, error, tracker.started_at()),
+        };
+
+        let since = if let Some(start) = started {
             format!(
                 "Триває {} · з {}",
                 duration_words(now - start),
@@ -498,6 +514,7 @@ impl Controller {
             state.set_alert_error(error);
             state.set_alert_since(since.into());
             state.set_bells_muted(muted);
+            state.set_drill_active(self.drill.is_some());
         });
     }
 
@@ -574,6 +591,25 @@ impl Controller {
             LogKind::Info,
             format!("Перевірка звуку: {}", sound.title().to_lowercase()),
         );
+    }
+
+    /// Починає або завершує навчальну тривогу (тренування евакуації).
+    fn toggle_drill(&mut self) {
+        match self.drill.take() {
+            None => {
+                self.drill = Some(Local::now());
+                self.player.play(Sound::Siren, &self.config.sound);
+                self.add_log(LogKind::Alert, "Навчальну тривогу розпочато".into());
+            }
+            Some(_) => {
+                if self.config.alert.play_all_clear {
+                    self.player.play(Sound::AllClear, &self.config.sound);
+                } else {
+                    self.player.stop();
+                }
+                self.add_log(LogKind::AllClear, "Навчальну тривогу завершено".into());
+            }
+        }
     }
 
     fn preview_sound(&mut self, index: i32) {
