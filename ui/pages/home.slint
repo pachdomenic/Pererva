@@ -1,0 +1,575 @@
+// Головна сторінка: годинник, стан тривоги, найближчий дзвінок, швидкі дії,
+// уроки на сьогодні та журнал подій.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Shape, Type, Motion, Icons } from "../theme.slint";
+import { AppState, AlertLevel, LessonState, LogKind } from "../state.slint";
+import { Card, CardKind, Pill } from "../components/surfaces.slint";
+import { Button, ButtonKind, IconButton } from "../components/buttons.slint";
+import { WavyProgress, RingProgress, ExpressiveShape, ShapeKind } from "../components/progress.slint";
+
+// Кольори картки тривоги залежно від рівня.
+global AlertColors {
+    out property <color> container: AppState.alert-level == AlertLevel.active ? Theme.error-container
+        : AppState.alert-level == AlertLevel.partial ? Theme.warning-container
+        : AppState.alert-level == AlertLevel.clear ? Theme.success-container
+        : Theme.surface-container-high;
+    out property <color> on-container: AppState.alert-level == AlertLevel.active ? Theme.on-error-container
+        : AppState.alert-level == AlertLevel.partial ? Theme.on-warning-container
+        : AppState.alert-level == AlertLevel.clear ? Theme.on-success-container
+        : Theme.on-surface;
+    out property <color> accent: AppState.alert-level == AlertLevel.active ? Theme.error
+        : AppState.alert-level == AlertLevel.partial ? Theme.warning
+        : AppState.alert-level == AlertLevel.clear ? Theme.success
+        : Theme.outline;
+    out property <color> on-accent: AppState.alert-level == AlertLevel.active ? Theme.on-error
+        : AppState.alert-level == AlertLevel.clear ? Theme.on-success
+        : Theme.surface;
+}
+
+// Банер на всю ширину під час тривоги.
+component AlertBanner inherits Rectangle {
+    border-radius: Shape.extra-large-increased;
+    background: Theme.error;
+    min-height: 96px;
+
+    HorizontalLayout {
+        padding: 20px;
+        padding-left: 24px;
+        spacing: 20px;
+
+        Rectangle {
+            width: 64px;
+            height: 64px;
+            y: (parent.height - self.height) / 2;
+
+            ExpressiveShape {
+                width: parent.width;
+                shape: ShapeKind.burst;
+                color: Theme.on-error;
+                spinning: true;
+            }
+            Image {
+                source: Icons.siren;
+                width: 32px;
+                height: 32px;
+                colorize: Theme.error;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: "ПОВІТРЯНА ТРИВОГА";
+                color: Theme.on-error;
+                font-size: Type.headline-medium;
+                font-weight: Type.heavy;
+                letter-spacing: 1px;
+            }
+            Text {
+                text: "Негайно пройдіть до укриття." + (AppState.bells-muted ? " Шкільні дзвінки вимкнено до відбою." : "");
+                color: Theme.on-error;
+                font-size: Type.body-large;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+component ClockCard inherits Card {
+    kind: CardKind.primary;
+    radius: Shape.extra-large-increased;
+    min-height: 260px;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 12px;
+
+            Pill {
+                text: AppState.day-title;
+                icon: Icons.school;
+                background: Theme.primary;
+                foreground: Theme.on-primary;
+            }
+            Rectangle { }
+            Text {
+                text: AppState.date;
+                color: Theme.on-primary-container;
+                font-size: Type.title-medium;
+                font-weight: Type.medium;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalLayout {
+            alignment: start;
+            spacing: 10px;
+
+            Text {
+                text: AppState.clock;
+                color: Theme.on-primary-container;
+                font-size: 112px;
+                font-weight: Type.heavy;
+                letter-spacing: -3px;
+            }
+            VerticalLayout {
+                alignment: end;
+                padding-bottom: 24px;
+
+                Text {
+                    text: AppState.seconds;
+                    color: Theme.primary;
+                    font-size: Type.display-small;
+                    font-weight: Type.emphasized;
+                }
+            }
+        }
+
+        Text {
+            text: AppState.day-subtitle;
+            color: Theme.on-primary-container;
+            font-size: Type.title-medium;
+            wrap: word-wrap;
+        }
+        WavyProgress {
+            progress: AppState.day-progress;
+            active-color: Theme.primary;
+            track-color: Theme.primary.with-alpha(0.2);
+        }
+    }
+}
+
+component AlertCard inherits Card {
+    background: AlertColors.container;
+    radius: Shape.extra-large-increased;
+    min-height: 260px;
+    min-width: 280px;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            Rectangle {
+                width: 88px;
+                height: 88px;
+
+                ExpressiveShape {
+                    width: parent.width;
+                    shape: AppState.alert-level == AlertLevel.active ? ShapeKind.burst
+                        : AppState.alert-level == AlertLevel.partial ? ShapeKind.flower
+                        : AppState.alert-level == AlertLevel.clear ? ShapeKind.cookie
+                        : ShapeKind.clover;
+                    color: AlertColors.accent;
+                    spinning: AppState.alert-level == AlertLevel.active;
+                    pulsing: AppState.alert-level == AlertLevel.active;
+                }
+                Image {
+                    source: AppState.alert-level == AlertLevel.active ? Icons.siren
+                        : AppState.alert-level == AlertLevel.partial ? Icons.warning
+                        : AppState.alert-level == AlertLevel.clear ? Icons.all-clear
+                        : AppState.alert-error ? Icons.offline : Icons.info;
+                    width: 40px;
+                    height: 40px;
+                    colorize: AlertColors.on-accent;
+                }
+            }
+            Rectangle { }
+            VerticalLayout {
+                alignment: start;
+
+                IconButton {
+                    icon: Icons.refresh;
+                    tint: AlertColors.on-container;
+                    tooltip: "Оновити";
+                    enabled: AppState.alert-level != AlertLevel.disabled;
+                    clicked => { AppState.refresh-alert(); }
+                }
+            }
+        }
+
+        Rectangle { height: 8px; }
+
+        Text {
+            text: AppState.alert-title;
+            color: AlertColors.on-container;
+            font-size: Type.headline-small;
+            font-weight: Type.heavy;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+
+            Image {
+                source: Icons.location;
+                width: 18px;
+                height: 18px;
+                y: (parent.height - self.height) / 2;
+                colorize: AlertColors.on-container;
+            }
+            Text {
+                text: AppState.alert-region;
+                color: AlertColors.on-container;
+                font-size: Type.body-large;
+                font-weight: Type.medium;
+            }
+        }
+        if AppState.alert-since != "": Text {
+            text: AppState.alert-since;
+            color: AlertColors.on-container;
+            font-size: Type.body-medium;
+        }
+        Rectangle { vertical-stretch: 1; }
+        Text {
+            text: AppState.alert-detail;
+            color: AppState.alert-error ? Theme.error : AlertColors.on-container.with-alpha(0.75);
+            font-size: Type.body-small;
+            wrap: word-wrap;
+        }
+    }
+}
+
+component NextBellCard inherits Card {
+    kind: CardKind.filled;
+    min-height: 180px;
+
+    HorizontalLayout {
+        padding: 24px;
+        spacing: 24px;
+
+        Rectangle {
+            width: 132px;
+            height: 132px;
+            y: (parent.height - self.height) / 2;
+
+            RingProgress {
+                width: parent.width;
+                height: parent.height;
+                thickness: 12px;
+                progress: AppState.next-bell-progress;
+                active-color: AppState.bells-muted ? Theme.outline : Theme.tertiary;
+                track-color: Theme.tertiary-container;
+            }
+            Text {
+                text: AppState.next-bell-countdown;
+                color: Theme.on-surface;
+                font-size: Type.title-large;
+                font-weight: Type.heavy;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: "Наступний дзвінок";
+                color: Theme.on-surface-variant;
+                font-size: Type.label-large;
+                font-weight: Type.medium;
+            }
+            Text {
+                text: AppState.next-bell-time;
+                color: Theme.on-surface;
+                font-size: Type.display-medium;
+                font-weight: Type.heavy;
+            }
+            Text {
+                text: AppState.next-bell-label;
+                color: Theme.on-surface;
+                font-size: Type.body-large;
+                wrap: word-wrap;
+            }
+            Text {
+                text: AppState.next-bell-in;
+                color: Theme.on-surface-variant;
+                font-size: Type.body-medium;
+            }
+            if AppState.bells-muted: HorizontalLayout {
+                alignment: start;
+
+                Pill {
+                    text: "Вимкнено через тривогу";
+                    icon: Icons.siren;
+                    background: Theme.error-container;
+                    foreground: Theme.on-error-container;
+                }
+            }
+        }
+    }
+}
+
+component ActionsCard inherits Card {
+    kind: CardKind.filled;
+    min-height: 180px;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 12px;
+
+        HorizontalLayout {
+            Text {
+                text: "Швидкі дії";
+                color: Theme.on-surface;
+                font-size: Type.title-large;
+                font-weight: Type.emphasized;
+                vertical-alignment: center;
+            }
+            Rectangle { }
+            if AppState.sound-playing: Pill {
+                text: AppState.playing-label;
+                icon: Icons.sound;
+                background: Theme.tertiary-container;
+                foreground: Theme.on-tertiary-container;
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+
+            Button {
+                horizontal-stretch: 1;
+                text: "Подати дзвінок";
+                icon: Icons.bell;
+                size: 56px;
+                clicked => { AppState.ring-bell(); }
+            }
+            Button {
+                horizontal-stretch: 1;
+                text: "Зупинити";
+                icon: Icons.stop;
+                kind: ButtonKind.outlined;
+                size: 56px;
+                enabled: AppState.sound-playing;
+                clicked => { AppState.stop-sound(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+
+            Button {
+                horizontal-stretch: 1;
+                text: "Сирена";
+                icon: Icons.siren;
+                kind: ButtonKind.danger;
+                clicked => { AppState.test-siren(); }
+            }
+            Button {
+                horizontal-stretch: 1;
+                text: "Відбій";
+                icon: Icons.all-clear;
+                kind: ButtonKind.tonal;
+                clicked => { AppState.test-all-clear(); }
+            }
+        }
+    }
+}
+
+component TodayCard inherits Card {
+    kind: CardKind.filled;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 8px;
+        alignment: start;
+
+        Text {
+            text: "Уроки сьогодні";
+            color: Theme.on-surface;
+            font-size: Type.title-large;
+            font-weight: Type.emphasized;
+        }
+
+        if AppState.today.length == 0: Text {
+            text: "Сьогодні вихідний — дзвінків немає";
+            color: Theme.on-surface-variant;
+            font-size: Type.body-large;
+        }
+
+        for lesson in AppState.today: Rectangle {
+            private property <bool> current: lesson.state == LessonState.current;
+            height: 52px;
+            border-radius: current ? Shape.large : Shape.medium;
+            background: current ? Theme.primary-container : transparent;
+            animate background { duration: Motion.slow; }
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 12px;
+                spacing: 14px;
+
+                Rectangle {
+                    width: 36px;
+                    height: 36px;
+                    y: (parent.height - self.height) / 2;
+
+                    ExpressiveShape {
+                        width: parent.width;
+                        shape: current ? ShapeKind.cookie : ShapeKind.circle;
+                        color: current ? Theme.primary
+                            : lesson.state == LessonState.done ? Theme.surface-container-highest
+                            : Theme.secondary-container;
+                    }
+                    Text {
+                        text: lesson.number;
+                        color: current ? Theme.on-primary
+                            : lesson.state == LessonState.done ? Theme.on-surface-variant
+                            : Theme.on-secondary-container;
+                        font-size: Type.title-small;
+                        font-weight: Type.heavy;
+                    }
+                }
+                Text {
+                    text: lesson.start + " – " + lesson.end;
+                    color: lesson.state == LessonState.done ? Theme.on-surface-variant : Theme.on-surface;
+                    font-size: Type.title-medium;
+                    font-weight: current ? Type.heavy : Type.medium;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                if current: Pill {
+                    y: (parent.height - self.height) / 2;
+                    text: "Зараз";
+                    background: Theme.primary;
+                    foreground: Theme.on-primary;
+                }
+                if lesson.state == LessonState.done: Image {
+                    source: Icons.check;
+                    width: 20px;
+                    height: 20px;
+                    y: (parent.height - self.height) / 2;
+                    colorize: Theme.on-surface-variant;
+                }
+            }
+        }
+    }
+}
+
+component LogCard inherits Card {
+    kind: CardKind.filled;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 4px;
+        alignment: start;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            Image {
+                source: Icons.history;
+                width: 22px;
+                height: 22px;
+                y: (parent.height - self.height) / 2;
+                colorize: Theme.on-surface-variant;
+            }
+            Text {
+                text: "Журнал";
+                color: Theme.on-surface;
+                font-size: Type.title-large;
+                font-weight: Type.emphasized;
+            }
+        }
+
+        if AppState.log.length == 0: Text {
+            text: "Подій ще немає";
+            color: Theme.on-surface-variant;
+            font-size: Type.body-large;
+        }
+
+        for entry in AppState.log: HorizontalLayout {
+            spacing: 12px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: Shape.small;
+                background: entry.kind == LogKind.alert ? Theme.error-container
+                    : entry.kind == LogKind.all-clear ? Theme.success-container
+                    : entry.kind == LogKind.error ? Theme.error-container
+                    : entry.kind == LogKind.bell ? Theme.tertiary-container
+                    : Theme.secondary-container;
+
+                Image {
+                    source: entry.kind == LogKind.alert ? Icons.siren
+                        : entry.kind == LogKind.all-clear ? Icons.all-clear
+                        : entry.kind == LogKind.error ? Icons.warning
+                        : entry.kind == LogKind.bell ? Icons.bell
+                        : Icons.info;
+                    width: 18px;
+                    height: 18px;
+                    colorize: entry.kind == LogKind.alert || entry.kind == LogKind.error ? Theme.on-error-container
+                        : entry.kind == LogKind.all-clear ? Theme.on-success-container
+                        : entry.kind == LogKind.bell ? Theme.on-tertiary-container
+                        : Theme.on-secondary-container;
+                }
+            }
+            Text {
+                text: entry.time;
+                color: Theme.on-surface-variant;
+                font-size: Type.body-medium;
+                font-weight: Type.medium;
+                vertical-alignment: center;
+                min-width: 64px;
+            }
+            Text {
+                text: entry.text;
+                color: Theme.on-surface;
+                font-size: Type.body-medium;
+                vertical-alignment: center;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}
+
+export component HomePage {
+    in property <bool> narrow: false;
+
+    ScrollView {
+        width: root.width;
+        height: root.height;
+
+        VerticalLayout {
+            padding: narrow ? 16px : 24px;
+            spacing: 16px;
+            alignment: start;
+
+            if AppState.alert-level == AlertLevel.active: AlertBanner { }
+
+            if !narrow: HorizontalLayout {
+                spacing: 16px;
+
+                ClockCard { horizontal-stretch: 3; }
+                AlertCard { horizontal-stretch: 2; }
+            }
+            if narrow: ClockCard { }
+            if narrow: AlertCard { }
+
+            if !narrow: HorizontalLayout {
+                spacing: 16px;
+
+                NextBellCard { horizontal-stretch: 1; }
+                ActionsCard { horizontal-stretch: 1; }
+            }
+            if narrow: NextBellCard { }
+            if narrow: ActionsCard { }
+
+            if !narrow: HorizontalLayout {
+                spacing: 16px;
+                alignment: stretch;
+
+                TodayCard { horizontal-stretch: 1; }
+                LogCard { horizontal-stretch: 1; }
+            }
+            if narrow: TodayCard { }
+            if narrow: LogCard { }
+        }
+    }
+}
