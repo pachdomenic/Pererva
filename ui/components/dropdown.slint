@@ -1,0 +1,132 @@
+// Випадаючий список (exposed dropdown menu).
+
+import { Theme, Shape, Type, Motion } from "../theme.slint";
+import { StateLayer } from "buttons.slint";
+
+export component Dropdown {
+    in property <string> label;
+    in property <[string]> model;
+    in-out property <int> current-index: 0;
+    in property <image> leading-icon;
+    in property <color> container-color: Theme.surface;
+    callback selected(int);
+
+    private property <length> item-height: 48px;
+    private property <bool> has-leading: leading-icon.width > 0;
+
+    min-width: 160px;
+    preferred-width: 280px;
+    height: 56px;
+    accessible-role: combobox;
+    accessible-label: label;
+    accessible-value: model[current-index];
+
+    frame := Rectangle {
+        border-radius: Shape.extra-small;
+        border-width: 1px;
+        border-color: touch.has-hover ? Theme.on-surface : Theme.outline;
+
+        if has-leading: Image {
+            x: 12px;
+            source: leading-icon;
+            width: 24px;
+            height: 24px;
+            colorize: Theme.on-surface-variant;
+        }
+
+        Text {
+            x: has-leading ? 48px : 16px;
+            width: parent.width - self.x - 48px;
+            text: current-index >= 0 && current-index < model.length ? model[current-index] : "";
+            color: Theme.on-surface;
+            font-size: Type.body-large;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Image {
+            x: parent.width - 40px;
+            source: @image-url("../icons/arrow-drop-down.svg");
+            width: 24px;
+            height: 24px;
+            colorize: Theme.on-surface-variant;
+        }
+
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { popup.show(); }
+        }
+    }
+
+    if label != "": Rectangle {
+        x: 12px;
+        y: -8px;
+        width: lbl.preferred-width + 8px;
+        height: lbl.preferred-height;
+        background: container-color;
+
+        lbl := Text {
+            text: label;
+            color: Theme.on-surface-variant;
+            font-size: Type.body-small;
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: root.width;
+        height: min(336px, model.length * item-height + 16px);
+
+        Rectangle {
+            border-radius: Shape.large;
+            background: Theme.surface-container;
+            drop-shadow-color: Theme.shadow.with-alpha(0.25);
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 4px;
+            clip: true;
+
+            Flickable {
+                content-height: model.length * item-height + 16px;
+                content-y: -max(0px, min(current-index * item-height - 2 * item-height, self.content-height - self.height));
+
+                VerticalLayout {
+                    padding: 8px;
+
+                    for item[i] in model: Rectangle {
+                        height: item-height;
+                        border-radius: Shape.medium;
+                        background: i == current-index ? Theme.secondary-container : transparent;
+                        clip: true;
+
+                        StateLayer {
+                            tint: Theme.on-surface;
+                            hovered: item-touch.has-hover;
+                            pressed: item-touch.pressed;
+                        }
+
+                        Text {
+                            x: 12px;
+                            width: parent.width - 24px;
+                            text: item;
+                            color: i == current-index ? Theme.on-secondary-container : Theme.on-surface;
+                            font-size: Type.body-large;
+                            font-weight: i == current-index ? Type.emphasized : Type.regular;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        item-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                current-index = i;
+                                selected(i);
+                                popup.close();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
