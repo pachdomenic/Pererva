@@ -1,0 +1,140 @@
+// Навігація: бічна панель (navigation rail) і нижня панель (navigation bar).
+
+import { Theme, Shape, Type, Motion } from "../theme.slint";
+import { StateLayer } from "buttons.slint";
+
+export struct NavItem {
+    label: string,
+    icon: image,
+    icon-active: image,
+    badge: bool,
+}
+
+component NavButton {
+    in property <NavItem> item;
+    in property <bool> active;
+    in property <length> indicator-width: 56px;
+    callback clicked;
+
+    private property <color> content: active ? Theme.on-secondary-container : Theme.on-surface-variant;
+
+    min-width: 56px;
+    height: 64px;
+    accessible-role: tab;
+    accessible-label: item.label;
+    accessible-item-selected: active;
+    accessible-action-default => { clicked(); }
+
+    indicator := Rectangle {
+        y: 4px;
+        // Індикатор пружинно «розгортається» від центру.
+        width: active ? indicator-width : 24px;
+        height: 32px;
+        border-radius: self.height / 2;
+        background: active ? Theme.secondary-container : transparent;
+        clip: true;
+        animate width { duration: Motion.default; easing: Motion.spatial-fast; }
+        animate background { duration: Motion.effects-default; }
+
+        StateLayer {
+            tint: content;
+            hovered: touch.has-hover;
+            pressed: touch.pressed;
+        }
+    }
+
+    Rectangle {
+        x: indicator.x;
+        y: indicator.y;
+        width: indicator.width;
+        height: indicator.height;
+
+        Image {
+            source: active ? item.icon-active : item.icon;
+            width: 24px;
+            height: 24px;
+            colorize: content;
+        }
+
+        if item.badge: Rectangle {
+            x: parent.width / 2 + 6px;
+            y: 2px;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: Theme.error;
+        }
+    }
+
+    Text {
+        y: 40px;
+        text: item.label;
+        color: content;
+        font-size: Type.label-medium;
+        font-weight: active ? Type.heavy : Type.medium;
+        horizontal-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { clicked(); }
+    }
+}
+
+export component NavigationRail inherits Rectangle {
+    in property <[NavItem]> items;
+    in-out property <int> current: 0;
+    callback navigate(int);
+
+    width: 96px;
+    background: Theme.surface-container;
+
+    VerticalLayout {
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 4px;
+        alignment: start;
+
+        // Слот для FAB над пунктами навігації.
+        HorizontalLayout {
+            alignment: center;
+            padding-bottom: 16px;
+
+            @children
+        }
+
+        for item[i] in items: NavButton {
+            item: item;
+            active: i == current;
+            clicked => {
+                current = i;
+                navigate(i);
+            }
+        }
+    }
+}
+
+export component NavigationBar inherits Rectangle {
+    in property <[NavItem]> items;
+    in-out property <int> current: 0;
+    callback navigate(int);
+
+    height: 80px;
+    background: Theme.surface-container;
+
+    HorizontalLayout {
+        padding-top: 8px;
+        padding-bottom: 8px;
+
+        for item[i] in items: NavButton {
+            horizontal-stretch: 1;
+            indicator-width: 64px;
+            item: item;
+            active: i == current;
+            clicked => {
+                current = i;
+                navigate(i);
+            }
+        }
+    }
+}
