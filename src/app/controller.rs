@@ -197,7 +197,6 @@ impl Controller {
             state.set_regions(ModelRc::new(VecModel::from(names)));
             state.set_settings(to_form(&config));
             state.set_log(ModelRc::from(self.log.clone()));
-            state.set_edit_lessons(ModelRc::from(self.edit_lessons.clone()));
             state.set_edit_days(ModelRc::from(self.edit_days.clone()));
             w.global::<Theme>().set_mode(config.ui.theme.index());
         });
@@ -647,10 +646,17 @@ impl Controller {
                     end_error: check.end_error,
                 })
                 .collect();
-            self.edit_lessons.set_vec(rows);
+            // Нова модель, а не set_vec: поля, які користувач редагував, мають
+            // розірвану прив'язку до старих даних, тож рядки треба створити заново.
+            self.edit_lessons = Rc::new(VecModel::from(rows));
             self.edit_days.set_vec(self.draft.days.to_vec());
+            let lessons = ModelRc::from(self.edit_lessons.clone());
             let warning = self.draft.warning_minutes as i32;
-            self.with_window(|w| w.global::<AppState>().set_edit_warning(warning));
+            self.with_window(|w| {
+                let state = w.global::<AppState>();
+                state.set_edit_lessons(lessons);
+                state.set_edit_warning(warning);
+            });
         } else {
             for (i, (row, check)) in self.draft.rows.iter().zip(&checks).enumerate() {
                 let updated = EditLesson {
