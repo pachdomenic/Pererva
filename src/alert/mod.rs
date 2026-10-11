@@ -3,6 +3,7 @@
 pub mod alerts_in_ua;
 pub mod monitor;
 pub mod regions;
+pub mod tracker;
 pub mod ubilling;
 
 use crate::config::{AlertConfig, AlertProvider};
