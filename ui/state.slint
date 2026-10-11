@@ -1,0 +1,120 @@
+// Глобальний стан інтерфейсу: дані, які оновлює Rust, і колбеки дій.
+
+export enum AlertLevel { disabled, unknown, clear, partial, active }
+
+export enum LessonState { upcoming, current, done }
+
+export struct LessonRow {
+    number: int,
+    start: string,
+    end: string,
+    state: LessonState,
+}
+
+export struct EditLesson {
+    start: string,
+    end: string,
+    duration: string,
+    start-error: bool,
+    end-error: bool,
+}
+
+export enum LogKind { info, bell, alert, all-clear, error }
+
+export struct LogEntry {
+    time: string,
+    text: string,
+    kind: LogKind,
+}
+
+export struct SettingsData {
+    alert-enabled: bool,
+    provider: int,
+    token: string,
+    region: int,
+    poll-seconds: int,
+    mute-bells: bool,
+    partial-is-alert: bool,
+    play-all-clear: bool,
+    volume: float,
+    bell-seconds: int,
+    siren-seconds: int,
+    bell-file: string,
+    siren-file: string,
+    all-clear-file: string,
+    theme: int,
+}
+
+export global AppState {
+    // Годинник і стан дня.
+    in property <string> clock: "--:--";
+    in property <string> seconds: "--";
+    in property <string> date;
+    in property <string> day-title: "Завантаження";
+    in property <string> day-subtitle;
+    in property <float> day-progress;
+    in property <bool> school-day: true;
+
+    // Найближчий дзвінок.
+    in property <string> next-bell-time: "--:--";
+    in property <string> next-bell-label;
+    in property <string> next-bell-countdown;
+    in property <string> next-bell-in;
+    in property <float> next-bell-progress;
+
+    // Повітряна тривога.
+    in property <AlertLevel> alert-level: AlertLevel.unknown;
+    in property <string> alert-title: "Немає даних";
+    in property <string> alert-region;
+    in property <string> alert-detail;
+    in property <string> alert-since;
+    in property <bool> alert-error;
+    in property <bool> bells-muted;
+
+    // Звук.
+    in property <bool> sound-playing;
+    in property <string> playing-label;
+
+    // Списки.
+    in property <[LessonRow]> today;
+    in property <[LogEntry]> log;
+
+    // Редагування розкладу.
+    in property <[EditLesson]> edit-lessons;
+    in-out property <[bool]> edit-days: [true, true, true, true, true, false, false];
+    in-out property <int> edit-warning;
+    in property <string> schedule-error;
+    in property <bool> schedule-dirty;
+
+    // Налаштування.
+    in-out property <SettingsData> settings;
+    in property <[string]> regions;
+    in property <[string]> providers: ["alerts.in.ua", "Ubilling"];
+    in property <string> config-path;
+    in property <bool> settings-dirty;
+
+    // Повідомлення.
+    in property <string> toast;
+    in property <bool> toast-shown;
+    in property <bool> toast-error;
+
+    callback ring-bell();
+    callback test-siren();
+    callback test-all-clear();
+    callback stop-sound();
+    callback refresh-alert();
+
+    callback lesson-edited(int, bool, string);
+    callback add-lesson();
+    callback remove-lesson(int);
+    callback schedule-changed();
+    callback save-schedule();
+    callback revert-schedule();
+
+    callback settings-changed();
+    callback save-settings();
+    callback preview-sound(int);
+    callback theme-changed(int);
+
+    callback dismiss-toast();
+}
