@@ -1,0 +1,379 @@
+// Сторінка налаштувань: джерело тривоги, звук, оформлення.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Shape, Type, Motion, Icons } from "../theme.slint";
+import { AppState } from "../state.slint";
+import { Card, CardKind, SectionHeader, SettingRow, Divider } from "../components/surfaces.slint";
+import { Button, ButtonKind, IconButton, ButtonGroup } from "../components/buttons.slint";
+import { Switch, Slider, TextField, Stepper } from "../components/inputs.slint";
+import { Dropdown } from "../components/dropdown.slint";
+
+// Поле шляху до власного звуку з кнопкою прослуховування.
+component SoundFileRow {
+    in property <string> label;
+    in property <string> path;
+    in property <int> sound;
+    callback edited(string);
+
+    min-height: 56px;
+
+    HorizontalLayout {
+        spacing: 8px;
+
+        TextField {
+            horizontal-stretch: 1;
+            label: label;
+            placeholder: "Вбудований звук";
+            text: path;
+            container-color: Theme.surface-container;
+            edited(text) => { root.edited(text); }
+        }
+        VerticalLayout {
+            alignment: center;
+
+            IconButton {
+                icon: Icons.play;
+                kind: tonal;
+                tooltip: "Прослухати";
+                clicked => { AppState.preview-sound(sound); }
+            }
+        }
+    }
+}
+
+export component SettingsPage {
+    in property <bool> narrow: false;
+
+    ScrollView {
+        width: root.width;
+        height: root.height;
+
+        VerticalLayout {
+            padding: narrow ? 16px : 24px;
+            padding-bottom: 112px;
+            spacing: 16px;
+            alignment: start;
+
+            Text {
+                text: "Налаштування";
+                color: Theme.on-surface;
+                font-size: Type.headline-large;
+                font-weight: Type.heavy;
+            }
+
+            // Повітряна тривога.
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+
+                    SectionHeader {
+                        text: "Повітряна тривога";
+                        subtitle: "Джерело даних і поведінка під час тривоги";
+                        icon: Icons.siren;
+                    }
+
+                    SettingRow {
+                        title: "Стежити за тривогою";
+                        description: "Періодично опитувати API і подавати сирену";
+
+                        Switch {
+                            checked: AppState.settings.alert-enabled;
+                            toggled(value) => {
+                                AppState.settings.alert-enabled = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    Divider { }
+
+                    Text {
+                        text: "Джерело даних";
+                        color: Theme.on-surface-variant;
+                        font-size: Type.label-large;
+                        font-weight: Type.medium;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+
+                        ButtonGroup {
+                            items: [
+                                { label: "alerts.in.ua", icon: Icons.key },
+                                { label: "Ubilling (без токена)", icon: Icons.public },
+                            ];
+                            selected: AppState.settings.provider;
+                            selected-changed(index) => {
+                                AppState.settings.provider = index;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+
+                    if AppState.settings.provider == 0: TextField {
+                        label: "Токен API alerts.in.ua";
+                        placeholder: "Вставте токен";
+                        supporting-text: "Отримати токен можна на devs.alerts.in.ua";
+                        password: true;
+                        leading-icon: Icons.key;
+                        text: AppState.settings.token;
+                        container-color: Theme.surface-container;
+                        edited(text) => {
+                            AppState.settings.token = text;
+                            AppState.settings-changed();
+                        }
+                    }
+
+                    Rectangle { height: 4px; }
+
+                    Dropdown {
+                        label: "Область";
+                        model: AppState.regions;
+                        current-index: AppState.settings.region;
+                        leading-icon: Icons.location;
+                        container-color: Theme.surface-container;
+                        selected(index) => {
+                            AppState.settings.region = index;
+                            AppState.settings-changed();
+                        }
+                    }
+
+                    SettingRow {
+                        title: "Інтервал опитування";
+                        description: "Як часто перевіряти стан тривоги";
+
+                        Stepper {
+                            value: AppState.settings.poll-seconds;
+                            minimum: 10;
+                            maximum: 600;
+                            step: 5;
+                            suffix: "с";
+                            changed(value) => {
+                                AppState.settings.poll-seconds = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    Divider { }
+                    SettingRow {
+                        title: "Вимикати дзвінки під час тривоги";
+                        description: "Шкільні дзвінки не подаються до відбою";
+
+                        Switch {
+                            checked: AppState.settings.mute-bells;
+                            toggled(value) => {
+                                AppState.settings.mute-bells = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Часткова тривога — це тривога";
+                        description: "Реагувати, якщо тривогу оголошено лише в частині громад області";
+
+                        Switch {
+                            checked: AppState.settings.partial-is-alert;
+                            toggled(value) => {
+                                AppState.settings.partial-is-alert = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Сигнал відбою";
+                        description: "Подавати передзвін після завершення тривоги";
+
+                        Switch {
+                            checked: AppState.settings.play-all-clear;
+                            toggled(value) => {
+                                AppState.settings.play-all-clear = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Звук.
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+
+                    SectionHeader {
+                        text: "Звук";
+                        subtitle: "Гучність, тривалість і власні аудіофайли (WAV, MP3, FLAC, OGG)";
+                        icon: Icons.volume;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 16px;
+                        padding-top: 16px;
+
+                        Image {
+                            source: Icons.volume;
+                            width: 24px;
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            colorize: Theme.on-surface-variant;
+                        }
+                        Slider {
+                            horizontal-stretch: 1;
+                            value: AppState.settings.volume;
+                            value-label: round(AppState.settings.volume * 100) + "%";
+                            changed(value) => {
+                                AppState.settings.volume = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                        Text {
+                            min-width: 48px;
+                            text: round(AppState.settings.volume * 100) + "%";
+                            color: Theme.on-surface;
+                            font-size: Type.title-medium;
+                            font-weight: Type.emphasized;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    SettingRow {
+                        title: "Тривалість шкільного дзвінка";
+
+                        Stepper {
+                            value: AppState.settings.bell-seconds;
+                            minimum: 1;
+                            maximum: 60;
+                            suffix: "с";
+                            changed(value) => {
+                                AppState.settings.bell-seconds = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Тривалість сирени";
+
+                        Stepper {
+                            value: AppState.settings.siren-seconds;
+                            minimum: 5;
+                            maximum: 300;
+                            step: 5;
+                            suffix: "с";
+                            changed(value) => {
+                                AppState.settings.siren-seconds = value;
+                                AppState.settings-changed();
+                            }
+                        }
+                    }
+                    Divider { }
+
+                    Rectangle { height: 4px; }
+
+                    SoundFileRow {
+                        label: "Файл шкільного дзвінка";
+                        path: AppState.settings.bell-file;
+                        sound: 0;
+                        edited(text) => {
+                            AppState.settings.bell-file = text;
+                            AppState.settings-changed();
+                        }
+                    }
+                    SoundFileRow {
+                        label: "Файл сирени";
+                        path: AppState.settings.siren-file;
+                        sound: 1;
+                        edited(text) => {
+                            AppState.settings.siren-file = text;
+                            AppState.settings-changed();
+                        }
+                    }
+                    SoundFileRow {
+                        label: "Файл сигналу відбою";
+                        path: AppState.settings.all-clear-file;
+                        sound: 2;
+                        edited(text) => {
+                            AppState.settings.all-clear-file = text;
+                            AppState.settings-changed();
+                        }
+                    }
+                }
+            }
+
+            // Оформлення.
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 16px;
+
+                    SectionHeader {
+                        text: "Оформлення";
+                        subtitle: "Тема застосовується одразу";
+                        icon: Icons.dark-mode;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+
+                        ButtonGroup {
+                            items: [
+                                { label: "Як у системі", icon: Icons.auto-mode },
+                                { label: "Світла", icon: Icons.light-mode },
+                                { label: "Темна", icon: Icons.dark-mode },
+                            ];
+                            selected: AppState.settings.theme;
+                            selected-changed(index) => {
+                                AppState.settings.theme = index;
+                                AppState.theme-changed(index);
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Файл налаштувань: " + AppState.config-path;
+                        color: Theme.on-surface-variant;
+                        font-size: Type.body-small;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+
+    // Панель збереження.
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: AppState.settings-dirty ? root.height - self.height - 24px : root.height + 8px;
+        width: min(root.width - 32px, 560px);
+        height: bar-layout.preferred-height;
+        border-radius: Shape.extra-large;
+        background: Theme.surface-container-highest;
+        drop-shadow-color: Theme.shadow.with-alpha(0.25);
+        drop-shadow-blur: 12px;
+        drop-shadow-offset-y: 4px;
+        animate y { duration: Motion.default; easing: Motion.spatial; }
+
+        bar-layout := HorizontalLayout {
+            padding: 12px;
+            padding-left: 24px;
+            spacing: 8px;
+
+            Text {
+                horizontal-stretch: 1;
+                text: "Є незбережені зміни";
+                color: Theme.on-surface;
+                font-size: Type.body-large;
+                font-weight: Type.medium;
+                vertical-alignment: center;
+            }
+            Button {
+                text: "Зберегти";
+                icon: Icons.save;
+                clicked => { AppState.save-settings(); }
+            }
+        }
+    }
+}
