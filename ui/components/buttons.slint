@@ -236,9 +236,10 @@ export struct SegmentItem {
 
 // З'єднана група кнопок (connected button group) — вибір одного варіанта.
 // Обрана кнопка стає повністю круглою, сусідні мають малі внутрішні кути.
+// Компонент керований: сам не змінює `selected`, а лише повідомляє про вибір.
 export component ButtonGroup {
     in property <[SegmentItem]> items;
-    in-out property <int> selected: 0;
+    in property <int> selected: 0;
     in property <length> size: 40px;
     callback selected-changed(int);
 
@@ -304,7 +305,6 @@ export component ButtonGroup {
                 mouse-cursor: pointer;
                 clicked => {
                     if (selected != i) {
-                        selected = i;
                         selected-changed(i);
                     }
                 }

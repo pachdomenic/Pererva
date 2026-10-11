@@ -1,10 +1,15 @@
 // Елементи введення Material 3 Expressive.
+//
+// Перемикач, слайдер, степпер і чіп — керовані компоненти: вони не змінюють
+// власне значення, а повідомляють про нове через колбек. Власник оновлює
+// модель, і значення повертається прив'язкою — тож прив'язка не розривається
+// і скидання моделі (наприклад, «Скасувати») одразу видно в інтерфейсі.
 
 import { Theme, Shape, Type, Motion } from "../theme.slint";
 import { IconButton, StateLayer } from "buttons.slint";
 
 export component Switch {
-    in-out property <bool> checked;
+    in property <bool> checked;
     in property <bool> enabled: true;
     callback toggled(bool);
 
@@ -57,17 +62,14 @@ export component Switch {
     touch := TouchArea {
         enabled: enabled;
         mouse-cursor: enabled ? pointer : default;
-        clicked => {
-            checked = !checked;
-            toggled(checked);
-        }
+        clicked => { toggled(!checked); }
     }
 }
 
 // Слайдер Expressive: товста доріжка, вертикальна ручка з проміжками і
 // бульбашка зі значенням під час перетягування.
 export component Slider {
-    in-out property <float> value: 0.5;
+    in property <float> value: 0.5;
     in property <float> minimum: 0;
     in property <float> maximum: 1;
     in property <string> value-label;
@@ -168,7 +170,6 @@ export component Slider {
         let r = max(0, min(1, (x - handle.width / 2) / max(1px, root.width - handle.width)));
         let v = minimum + r * (maximum - minimum);
         if (v != value) {
-            value = v;
             changed(v);
         }
     }
@@ -285,7 +286,7 @@ export component TextField {
 
 // Числовий степпер: [−] значення [+].
 export component Stepper {
-    in-out property <int> value;
+    in property <int> value;
     in property <int> minimum: 0;
     in property <int> maximum: 100;
     in property <int> step: 1;
@@ -310,10 +311,7 @@ export component Stepper {
             kind: tonal;
             enabled: value > minimum;
             tooltip: "Зменшити";
-            clicked => {
-                value = max(minimum, value - step);
-                changed(value);
-            }
+            clicked => { changed(max(minimum, value - step)); }
         }
         Text {
             min-width: 72px;
@@ -329,10 +327,7 @@ export component Stepper {
             kind: tonal;
             enabled: value < maximum;
             tooltip: "Збільшити";
-            clicked => {
-                value = min(maximum, value + step);
-                changed(value);
-            }
+            clicked => { changed(min(maximum, value + step)); }
         }
     }
 }
@@ -340,7 +335,7 @@ export component Stepper {
 // Чіп-фільтр. Вибраний чіп заповнюється і стає «пігулкою».
 export component FilterChip {
     in property <string> text;
-    in-out property <bool> selected;
+    in property <bool> selected;
     callback toggled(bool);
 
     height: 36px;
@@ -389,9 +384,6 @@ export component FilterChip {
 
     touch := TouchArea {
         mouse-cursor: pointer;
-        clicked => {
-            selected = !selected;
-            toggled(selected);
-        }
+        clicked => { toggled(!selected); }
     }
 }

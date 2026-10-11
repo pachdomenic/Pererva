@@ -1,4 +1,5 @@
-// Випадаючий список (exposed dropdown menu).
+// Випадаючий список (exposed dropdown menu). Керований: обраний пункт задає
+// власник через `current-index`, компонент лише повідомляє про вибір.
 
 import { Theme, Shape, Type, Motion } from "../theme.slint";
 import { StateLayer } from "buttons.slint";
@@ -6,7 +7,7 @@ import { StateLayer } from "buttons.slint";
 export component Dropdown {
     in property <string> label;
     in property <[string]> model;
-    in-out property <int> current-index: 0;
+    in property <int> current-index: 0;
     in property <image> leading-icon;
     in property <color> container-color: Theme.surface;
     callback selected(int);
@@ -119,7 +120,6 @@ export component Dropdown {
                         item-touch := TouchArea {
                             mouse-cursor: pointer;
                             clicked => {
-                                current-index = i;
                                 selected(i);
                                 popup.close();
                             }
