@@ -1,0 +1,16 @@
+[package]
+name = "shkilni-dzvinky"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Шкільні дзвінки за розкладом з інтеграцією API повітряної тривоги"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/pachdomenic/Pererva"
+readme = "README.md"
+
+[dependencies]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
