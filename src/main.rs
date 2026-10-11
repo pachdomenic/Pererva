@@ -5,6 +5,9 @@ mod audio;
 mod config;
 mod schedule;
 
-fn main() {
-    println!("Шкільні дзвінки");
+slint::include_modules!();
+
+fn main() -> Result<(), slint::PlatformError> {
+    let window = AppWindow::new()?;
+    window.run()
 }
