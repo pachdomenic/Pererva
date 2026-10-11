@@ -148,10 +148,10 @@ export component ExpressiveShape {
     preferred-width: 120px;
     preferred-height: self.width;
 
-    // Пульсація без анімації (оновлюється щокадру), морф — з анімацією.
-    scaler := Rectangle {
-        width: root.width * pulse;
-        height: self.width;
+    // Пульсація — масштабуванням усього шару (без анімації, оновлюється щокадру),
+    // морф — анімованим розміром окремих форм, що від пульсації не залежить.
+    Rectangle {
+        transform-scale: pulse;
 
         for kind in [ShapeKind.cookie, ShapeKind.burst, ShapeKind.flower, ShapeKind.clover, ShapeKind.circle]: Image {
             private property <bool> current: kind == shape;
@@ -161,10 +161,10 @@ export component ExpressiveShape {
                 : kind == ShapeKind.clover ? @image-url("../shapes/clover-4.svg")
                 : @image-url("../shapes/circle.svg");
             colorize: color;
-            width: scaler.width * (current ? 1 : 0.6);
+            width: root.width * (current ? 1 : 0.6);
             height: self.width;
-            x: (scaler.width - self.width) / 2;
-            y: (scaler.height - self.height) / 2;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
             opacity: current ? 1 : 0;
             transform-rotation: spin + (current ? 0deg : -60deg);
             animate width, x, y { duration: Motion.slow; easing: Motion.spatial-slow; }
