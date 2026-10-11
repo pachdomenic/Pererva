@@ -6,6 +6,9 @@ on:
     # Тег vX.Y.Z — збірка і публікація релізу на GitHub.
     tags: ["v*"]
   pull_request:
+  # Ручний запуск; на тезі vX.Y.Z — з публікацією релізу (так його запускає
+  # workflow «Випуск релізу»).
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always

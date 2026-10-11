@@ -1,0 +1,87 @@
+name: Випуск релізу
+
+# Кнопка «Run workflow» на вкладці Actions: вказуєте версію, workflow
+# оновлює її в Cargo.toml і Cargo.lock, ставить тег vX.Y.Z і запускає CI на
+# цьому тезі — той збирає всі платформи і публікує реліз.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версія, наприклад 0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency: release
+
+jobs:
+  release:
+    name: Тег і запуск збірки
+    runs-on: ubuntu-latest
+    steps:
+      - name: Запуск лише з гілки
+        if: github.ref_type != 'branch'
+        run: |
+          echo "::error::Запустіть workflow на гілці, а не на тезі"
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Перевірка версії
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION#v}"
+          version="$(echo "$version" | tr -d '[:space:]')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Версія має бути у форматі X.Y.Z, отримано «$INPUT_VERSION»"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "::error::Тег v$version уже існує"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Версія в Cargo.toml і Cargo.lock
+        run: |
+          current="$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)"
+          if [[ "$current" == "$VERSION" ]]; then
+            echo "Версія вже $VERSION — коміт не потрібен"
+            exit 0
+          fi
+          sed -i "0,/^version = .*/s//version = \"$VERSION\"/" Cargo.toml
+          python3 - "$VERSION" <<'PY'
+          import re, sys
+          path = "Cargo.lock"
+          text = open(path, encoding="utf-8").read()
+          text, n = re.subn(
+              r'(name = "shkilni-dzvinky"\nversion = ")[^"]+',
+              r"\g<1>" + sys.argv[1],
+              text,
+          )
+          if n != 1:
+              sys.exit("у Cargo.lock не знайдено пакет shkilni-dzvinky")
+          open(path, "w", encoding="utf-8").write(text)
+          PY
+          cargo metadata --locked --format-version 1 > /dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: версія $VERSION"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+      - name: Тег
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+      - name: Запуск збірки і релізу
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci.yml --ref "v$VERSION"
+          {
+            echo "### Реліз v$VERSION"
+            echo
+            echo "Тег поставлено, збірку запущено — реліз з'явиться на сторінці"
+            echo "[Releases](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases), щойно CI завершиться."
+          } >> "$GITHUB_STEP_SUMMARY"
