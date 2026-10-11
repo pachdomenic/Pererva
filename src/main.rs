@@ -5,8 +5,10 @@ mod alert;
 mod app;
 mod audio;
 mod config;
+mod i18n;
 mod schedule;
 
+use i18n::pick;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -22,7 +24,19 @@ const USAGE: &str = "\
   -h, --help           показати цю довідку
   -V, --version        показати версію";
 
+const USAGE_EN: &str = "\
+School Bells — rings school bells on schedule, taking air raid alerts into account.
+
+Usage: shkilni-dzvinky [OPTIONS]
+
+Options:
+  -c, --config <FILE>  path to the settings file
+  -h, --help           show this help
+  -V, --version        show the version";
+
 fn main() -> ExitCode {
+    i18n::set(config::Language::System.resolve());
+    let usage = pick(USAGE, USAGE_EN);
     let mut config_path = config::Config::default_path();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -30,12 +44,18 @@ fn main() -> ExitCode {
             "-c" | "--config" => match args.next() {
                 Some(path) => config_path = PathBuf::from(path),
                 None => {
-                    eprintln!("Параметр {arg} потребує шляху до файлу\n\n{USAGE}");
+                    eprintln!(
+                        "{}\n\n{usage}",
+                        tr!(
+                            "Параметр {arg} потребує шляху до файлу",
+                            "Option {arg} requires a file path"
+                        )
+                    );
                     return ExitCode::from(2);
                 }
             },
             "-h" | "--help" => {
-                println!("{USAGE}");
+                println!("{usage}");
                 return ExitCode::SUCCESS;
             }
             "-V" | "--version" => {
@@ -43,7 +63,10 @@ fn main() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             other => {
-                eprintln!("Невідомий параметр: {other}\n\n{USAGE}");
+                eprintln!(
+                    "{}\n\n{usage}",
+                    tr!("Невідомий параметр: {other}", "Unknown option: {other}")
+                );
                 return ExitCode::from(2);
             }
         }
@@ -52,7 +75,13 @@ fn main() -> ExitCode {
     match app::controller::run(config_path) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("Не вдалося запустити інтерфейс: {err}");
+            eprintln!(
+                "{}",
+                tr!(
+                    "Не вдалося запустити інтерфейс: {err}",
+                    "Could not start the interface: {err}"
+                )
+            );
             ExitCode::FAILURE
         }
     }

@@ -310,7 +310,7 @@ export component Stepper {
             icon: @image-url("../icons/remove.svg");
             kind: tonal;
             enabled: value > minimum;
-            tooltip: "Зменшити";
+            tooltip: @tr("Зменшити");
             clicked => { changed(max(minimum, value - step)); }
         }
         Text {
@@ -326,7 +326,7 @@ export component Stepper {
             icon: @image-url("../icons/add.svg");
             kind: tonal;
             enabled: value < maximum;
-            tooltip: "Збільшити";
+            tooltip: @tr("Збільшити");
             clicked => { changed(min(maximum, value + step)); }
         }
     }

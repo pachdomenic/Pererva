@@ -1,7 +1,9 @@
 //! Налаштування застосунку, що зберігаються у TOML-файлі.
 
 use crate::alert::regions;
+use crate::i18n::{Lang, pick};
 use crate::schedule::{Schedule, hhmm};
+use crate::tr;
 use anyhow::{Context, Result};
 use chrono::{NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
@@ -29,7 +31,7 @@ impl AlertProvider {
     pub fn title(self) -> &'static str {
         match self {
             AlertProvider::AlertsInUa => "alerts.in.ua",
-            AlertProvider::Ubilling => "Ubilling (без токена)",
+            AlertProvider::Ubilling => pick("Ubilling (без токена)", "Ubilling (no token)"),
         }
     }
 
@@ -227,10 +229,47 @@ impl ThemeMode {
     }
 }
 
+/// Мова інтерфейсу.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Language {
+    #[default]
+    System,
+    Uk,
+    En,
+}
+
+impl Language {
+    pub fn index(self) -> i32 {
+        match self {
+            Language::System => 0,
+            Language::Uk => 1,
+            Language::En => 2,
+        }
+    }
+
+    pub fn from_index(index: i32) -> Self {
+        match index {
+            1 => Language::Uk,
+            2 => Language::En,
+            _ => Language::System,
+        }
+    }
+
+    pub fn resolve(self) -> Lang {
+        match self {
+            Language::System => Lang::from_system(),
+            Language::Uk => Lang::Uk,
+            Language::En => Lang::En,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct UiConfig {
     pub theme: ThemeMode,
+    pub language: Language,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -257,29 +296,58 @@ impl Config {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let raw = fs::read_to_string(path)
-            .with_context(|| format!("не вдалося прочитати {}", path.display()))?;
-        let mut config: Config = toml::from_str(&raw)
-            .with_context(|| format!("помилка у файлі налаштувань {}", path.display()))?;
+        let raw = fs::read_to_string(path).with_context(|| {
+            tr!(
+                "не вдалося прочитати {}",
+                "could not read {}",
+                path.display()
+            )
+        })?;
+        let mut config: Config = toml::from_str(&raw).with_context(|| {
+            tr!(
+                "помилка у файлі налаштувань {}",
+                "error in settings file {}",
+                path.display()
+            )
+        })?;
         config.normalize();
-        config
-            .schedule
-            .validate()
-            .context("некоректний розклад у файлі налаштувань")?;
+        config.schedule.validate().context(pick(
+            "некоректний розклад у файлі налаштувань",
+            "invalid schedule in settings file",
+        ))?;
         Ok(config)
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)
-                .with_context(|| format!("не вдалося створити {}", dir.display()))?;
+            fs::create_dir_all(dir).with_context(|| {
+                tr!(
+                    "не вдалося створити {}",
+                    "could not create {}",
+                    dir.display()
+                )
+            })?;
         }
-        let raw = toml::to_string_pretty(self).context("не вдалося серіалізувати налаштування")?;
+        let raw = toml::to_string_pretty(self).context(pick(
+            "не вдалося серіалізувати налаштування",
+            "could not serialize settings",
+        ))?;
         // Запис через тимчасовий файл, щоб не зіпсувати конфіг при збої.
         let tmp = path.with_extension("toml.tmp");
-        fs::write(&tmp, raw).with_context(|| format!("не вдалося записати {}", tmp.display()))?;
-        fs::rename(&tmp, path)
-            .with_context(|| format!("не вдалося записати {}", path.display()))?;
+        fs::write(&tmp, raw).with_context(|| {
+            tr!(
+                "не вдалося записати {}",
+                "could not write {}",
+                tmp.display()
+            )
+        })?;
+        fs::rename(&tmp, path).with_context(|| {
+            tr!(
+                "не вдалося записати {}",
+                "could not write {}",
+                path.display()
+            )
+        })?;
         Ok(())
     }
 
@@ -326,6 +394,7 @@ mod tests {
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
         config.ui.theme = ThemeMode::Dark;
+        config.ui.language = Language::En;
         config.memorial.time = NaiveTime::from_hms_opt(9, 30, 0).unwrap();
         config.memorial.anthem = false;
         config.sound.anthem_file = Some("/tmp/anthem.mp3".into());
@@ -391,6 +460,15 @@ mod tests {
             assert_eq!(ThemeMode::from_index(mode.index()), mode);
         }
         assert_eq!(ThemeMode::from_index(42), ThemeMode::System);
+    }
+
+    #[test]
+    fn language_index_roundtrip() {
+        for language in [Language::System, Language::Uk, Language::En] {
+            assert_eq!(Language::from_index(language.index()), language);
+        }
+        assert_eq!(Language::from_index(-1), Language::System);
+        assert_eq!(Language::En.resolve(), Lang::En);
     }
 
     #[test]

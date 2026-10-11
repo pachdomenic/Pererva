@@ -2,7 +2,8 @@
 
 use crate::SettingsData;
 use crate::alert::regions::{self, REGIONS};
-use crate::config::{AlertProvider, Config, ThemeMode, YellowMode};
+use crate::config::{AlertProvider, Config, Language, ThemeMode, YellowMode};
+use crate::i18n::pick;
 use crate::schedule::{format_hhmm, parse_hhmm};
 use std::path::PathBuf;
 
@@ -18,12 +19,15 @@ fn string_to_path(raw: &str) -> Option<PathBuf> {
     (!trimmed.is_empty()).then(|| PathBuf::from(trimmed))
 }
 
-const WHOLE_REGION: &str = "Уся область";
+/// Назви областей мовою інтерфейсу.
+pub fn region_names() -> Vec<slint::SharedString> {
+    REGIONS.iter().map(|r| r.title().into()).collect()
+}
 
 /// Пункти списку районів: «Уся область», далі райони області.
 pub fn district_names(region_uid: u32) -> Vec<slint::SharedString> {
-    std::iter::once(WHOLE_REGION)
-        .chain(regions::districts_of(region_uid).map(|d| d.name))
+    std::iter::once(pick("Уся область", "Entire region").to_owned())
+        .chain(regions::districts_of(region_uid).map(|d| d.title()))
         .map(Into::into)
         .collect()
 }
@@ -62,6 +66,7 @@ pub fn to_form(config: &Config) -> SettingsData {
         silence_file: path_to_string(&config.sound.silence_file),
         anthem_file: path_to_string(&config.sound.anthem_file),
         theme: config.ui.theme.index(),
+        language: config.ui.language.index(),
     }
 }
 
@@ -106,6 +111,7 @@ pub fn apply_form(base: &Config, form: &SettingsData) -> Config {
     memorial.anthem = form.memorial_anthem;
 
     config.ui.theme = ThemeMode::from_index(form.theme);
+    config.ui.language = Language::from_index(form.language);
     config.normalize();
     config
 }
@@ -162,7 +168,7 @@ mod tests {
         assert_eq!(form.district, 0);
 
         let names = district_names(14);
-        assert_eq!(names[0], WHOLE_REGION);
+        assert_eq!(names[0], "Уся область");
         form.district = names
             .iter()
             .position(|n| n == "Бориспільський район")
@@ -198,7 +204,7 @@ mod tests {
     fn regions_without_districts() {
         assert_eq!(
             district_names(31),
-            vec![slint::SharedString::from(WHOLE_REGION)]
+            vec![slint::SharedString::from("Уся область")]
         );
     }
 }

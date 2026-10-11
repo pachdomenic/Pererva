@@ -4,6 +4,8 @@
 //! навчальних днів тижня. З нього обчислюються події дзвінків і поточний
 //! стан дня: урок, перерва, до чи після уроків.
 
+use crate::i18n::pick;
+use crate::tr;
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -84,11 +86,15 @@ pub enum DayStatus {
 impl fmt::Display for DayStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            DayStatus::DayOff => write!(f, "Вихідний"),
-            DayStatus::BeforeLessons { .. } => write!(f, "До початку уроків"),
-            DayStatus::Lesson { number, .. } => write!(f, "{number}-й урок"),
-            DayStatus::Break { .. } => write!(f, "Перерва"),
-            DayStatus::AfterLessons => write!(f, "Уроки закінчились"),
+            DayStatus::DayOff => f.write_str(pick("Вихідний", "Day off")),
+            DayStatus::BeforeLessons { .. } => {
+                f.write_str(pick("До початку уроків", "Before lessons"))
+            }
+            DayStatus::Lesson { number, .. } => {
+                f.write_str(&tr!("{number}-й урок", "Lesson {number}"))
+            }
+            DayStatus::Break { .. } => f.write_str(pick("Перерва", "Break")),
+            DayStatus::AfterLessons => f.write_str(pick("Уроки закінчились", "Lessons are over")),
         }
     }
 }
@@ -102,12 +108,14 @@ pub enum ScheduleError {
 impl fmt::Display for ScheduleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScheduleError::EmptyLesson(n) => {
-                write!(f, "{n}-й урок закінчується раніше, ніж починається")
-            }
-            ScheduleError::Overlap(n) => {
-                write!(f, "{n}-й урок починається до закінчення попереднього")
-            }
+            ScheduleError::EmptyLesson(n) => f.write_str(&tr!(
+                "{n}-й урок закінчується раніше, ніж починається",
+                "lesson {n} ends before it starts"
+            )),
+            ScheduleError::Overlap(n) => f.write_str(&tr!(
+                "{n}-й урок починається до закінчення попереднього",
+                "lesson {n} starts before the previous one ends"
+            )),
         }
     }
 }

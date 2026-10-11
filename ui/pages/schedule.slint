@@ -49,7 +49,7 @@ component LessonEditor inherits Rectangle {
 
             TextField {
                 width: narrow ? 92px : 120px;
-                label: "Початок";
+                label: @tr("Початок");
                 placeholder: "08:30";
                 text: start;
                 centered: true;
@@ -63,7 +63,7 @@ component LessonEditor inherits Rectangle {
 
             TextField {
                 width: narrow ? 92px : 120px;
-                label: "Кінець";
+                label: @tr("Кінець");
                 placeholder: "09:15";
                 text: end;
                 centered: true;
@@ -88,7 +88,7 @@ component LessonEditor inherits Rectangle {
 
             IconButton {
                 icon: Icons.delete;
-                tooltip: "Видалити урок";
+                tooltip: @tr("Видалити урок");
                 clicked => { AppState.remove-lesson(index); }
             }
         }
@@ -98,7 +98,7 @@ component LessonEditor inherits Rectangle {
 export component SchedulePage {
     in property <bool> narrow: false;
 
-    private property <[string]> day-names: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+    private property <[string]> day-names: [@tr("Пн"), @tr("Вт"), @tr("Ср"), @tr("Чт"), @tr("Пт"), @tr("Сб"), @tr("Нд")];
 
     ScrollView {
         width: root.width;
@@ -112,7 +112,7 @@ export component SchedulePage {
             alignment: start;
 
             Text {
-                text: "Розклад дзвінків";
+                text: @tr("Розклад дзвінків");
                 color: Theme.on-surface;
                 font-size: Type.headline-large;
                 font-weight: Type.heavy;
@@ -126,8 +126,8 @@ export component SchedulePage {
                     spacing: 16px;
 
                     SectionHeader {
-                        text: "Навчальні дні";
-                        subtitle: "У ці дні дзвінки подаються за розкладом";
+                        text: @tr("Навчальні дні");
+                        subtitle: @tr("У ці дні дзвінки подаються за розкладом");
                         icon: Icons.calendar-fill;
                     }
                     HorizontalLayout {
@@ -144,14 +144,14 @@ export component SchedulePage {
                         }
                     }
                     SettingRow {
-                        title: "Попереджувальний дзвінок";
-                        description: "За скільки хвилин до уроку подати короткий дзвінок (0 — вимкнено)";
+                        title: @tr("Попереджувальний дзвінок");
+                        description: @tr("За скільки хвилин до уроку подати короткий дзвінок (0 — вимкнено)");
 
                         Stepper {
                             value: AppState.edit-warning;
                             minimum: 0;
                             maximum: 30;
-                            suffix: "хв";
+                            suffix: @tr("хв");
                             changed(value) => {
                                 AppState.edit-warning = value;
                                 AppState.schedule-changed();
@@ -169,8 +169,8 @@ export component SchedulePage {
                     spacing: 10px;
 
                     SectionHeader {
-                        text: "Уроки";
-                        subtitle: "Час у форматі ГГ:ХХ. Дзвінок подається на початку і в кінці кожного уроку";
+                        text: @tr("Уроки");
+                        subtitle: @tr("Час у форматі ГГ:ХХ. Дзвінок подається на початку і в кінці кожного уроку");
                         icon: Icons.clock;
                     }
 
@@ -185,7 +185,7 @@ export component SchedulePage {
                     }
 
                     if AppState.edit-lessons.length == 0: Text {
-                        text: "Уроків немає — додайте перший";
+                        text: @tr("Уроків немає — додайте перший");
                         color: Theme.on-surface-variant;
                         font-size: Type.body-large;
                     }
@@ -195,7 +195,7 @@ export component SchedulePage {
                         padding-top: 4px;
 
                         Button {
-                            text: "Додати урок";
+                            text: @tr("Додати урок");
                             icon: Icons.add;
                             kind: ButtonKind.tonal;
                             clicked => { AppState.add-lesson(); }
@@ -226,7 +226,7 @@ export component SchedulePage {
 
             Text {
                 horizontal-stretch: 1;
-                text: AppState.schedule-error != "" ? AppState.schedule-error : "Є незбережені зміни";
+                text: AppState.schedule-error != "" ? AppState.schedule-error : @tr("Є незбережені зміни");
                 color: AppState.schedule-error != "" ? Theme.error : Theme.on-surface;
                 font-size: Type.body-large;
                 font-weight: Type.medium;
@@ -234,12 +234,12 @@ export component SchedulePage {
                 wrap: word-wrap;
             }
             Button {
-                text: "Скасувати";
+                text: @tr("Скасувати");
                 kind: ButtonKind.text;
                 clicked => { AppState.revert-schedule(); }
             }
             Button {
-                text: "Зберегти";
+                text: @tr("Зберегти");
                 icon: Icons.save;
                 enabled: AppState.schedule-error == "";
                 clicked => { AppState.save-schedule(); }

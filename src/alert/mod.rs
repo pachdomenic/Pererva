@@ -7,6 +7,8 @@ pub mod tracker;
 pub mod ubilling;
 
 use crate::config::{AlertConfig, AlertProvider, YellowMode};
+use crate::i18n::pick;
+use crate::tr;
 use regions::{District, Region};
 use std::fmt;
 use std::time::Duration;
@@ -82,10 +84,10 @@ impl Reading {
 impl fmt::Display for AlertStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            AlertStatus::Unknown => "Немає даних",
-            AlertStatus::Clear => "Тривоги немає",
-            AlertStatus::Partial => "Тривога в частині громад",
-            AlertStatus::Active => "Повітряна тривога",
+            AlertStatus::Unknown => pick("Немає даних", "No data"),
+            AlertStatus::Clear => pick("Тривоги немає", "No alert"),
+            AlertStatus::Partial => pick("Тривога в частині громад", "Alert in some communities"),
+            AlertStatus::Active => pick("Повітряна тривога", "Air raid alert"),
         })
     }
 }
@@ -104,13 +106,31 @@ pub enum FetchError {
 impl fmt::Display for FetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FetchError::MissingToken => write!(f, "не вказано токен API"),
-            FetchError::Unauthorized => write!(f, "токен API недійсний"),
-            FetchError::RateLimited => write!(f, "перевищено ліміт запитів, збільште інтервал"),
-            FetchError::Http(code) => write!(f, "сервер повернув помилку {code}"),
-            FetchError::Network(e) => write!(f, "немає з'єднання: {e}"),
-            FetchError::Parse(e) => write!(f, "незрозуміла відповідь сервера: {e}"),
-            FetchError::RegionNotFound => write!(f, "область не знайдено у відповіді"),
+            FetchError::MissingToken => {
+                f.write_str(pick("не вказано токен API", "API token is not set"))
+            }
+            FetchError::Unauthorized => {
+                f.write_str(pick("токен API недійсний", "API token is invalid"))
+            }
+            FetchError::RateLimited => f.write_str(pick(
+                "перевищено ліміт запитів, збільште інтервал",
+                "request limit exceeded, increase the interval",
+            )),
+            FetchError::Http(code) => f.write_str(&tr!(
+                "сервер повернув помилку {code}",
+                "server returned error {code}"
+            )),
+            FetchError::Network(e) => {
+                f.write_str(&tr!("немає з'єднання: {e}", "no connection: {e}"))
+            }
+            FetchError::Parse(e) => f.write_str(&tr!(
+                "незрозуміла відповідь сервера: {e}",
+                "unexpected server response: {e}"
+            )),
+            FetchError::RegionNotFound => f.write_str(pick(
+                "область не знайдено у відповіді",
+                "region not found in the response",
+            )),
         }
     }
 }
@@ -153,8 +173,8 @@ impl Location {
 
     pub fn title(&self) -> String {
         match self.district {
-            Some(district) => format!("{}, {}", district.name, self.region.name),
-            None => self.region.name.to_owned(),
+            Some(district) => format!("{}, {}", district.title(), self.region.title()),
+            None => self.region.title().to_owned(),
         }
     }
 }

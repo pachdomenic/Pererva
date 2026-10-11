@@ -3,19 +3,20 @@
 
 use super::draft::ScheduleDraft;
 use super::format::{countdown, duration_words, long_date, ordinal, relative_day};
-use super::settings::{apply_form, district_names, to_form};
+use super::settings::{apply_form, district_names, region_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
-use crate::alert::regions::REGIONS;
 use crate::alert::tracker::{AlertTracker, Transition};
 use crate::alert::{AlertStatus, Location, ThreatLevel};
 use crate::audio::{Player, Sound};
-use crate::config::{AlertProvider, Config, ThemeMode, YellowMode};
+use crate::config::{AlertProvider, Config, Language, ThemeMode, YellowMode};
+use crate::i18n::{self, Lang, pick};
 use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm, parse_hhmm};
 use crate::{
     AlertLevel, AppState, AppWindow, EditLesson, LessonRow, LessonState, LogEntry, LogKind, Theme,
+    tr,
 };
 use chrono::{DateTime, Duration, Local, NaiveDateTime};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -62,6 +63,8 @@ pub struct Controller {
 /// Створює вікно, запускає фонові потоки і цикл подій.
 pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
     let window = AppWindow::new()?;
+    // Поки налаштування не прочитано, помилки — мовою системи.
+    i18n::set(Language::System.resolve());
     let (config, load_error) = match Config::load(&config_path) {
         Ok(config) => (config, None),
         Err(err) => (Config::default(), Some(format!("{err:#}"))),
@@ -166,15 +169,29 @@ fn bind_callbacks(window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
             c.borrow_mut().theme_changed(index);
         }
     });
+    let weak = Rc::downgrade(controller);
+    state.on_language_changed(move |index| {
+        if let Some(c) = weak.upgrade() {
+            c.borrow_mut().language_changed(index);
+        }
+    });
+}
+
+/// Перемикає мову текстів Rust-коду і розмітки Slint.
+fn select_language(lang: Lang) {
+    i18n::set(lang);
+    if let Err(err) = slint::select_bundled_translation(lang.slint_code()) {
+        eprintln!("{err}");
+    }
 }
 
 /// Назва тривоги. Рівні розрізняє лише alerts.in.ua (`levels`), для інших
 /// джерел тривога просто «повітряна».
 fn alert_name(level: ThreatLevel, levels: bool) -> &'static str {
     match (level, levels) {
-        (ThreatLevel::Yellow, _) => "Тривога жовтого рівня",
-        (ThreatLevel::Red, true) => "Тривога червоного рівня",
-        (ThreatLevel::Red, false) => "Повітряна тривога",
+        (ThreatLevel::Yellow, _) => pick("Тривога жовтого рівня", "Yellow-level alert"),
+        (ThreatLevel::Red, true) => pick("Тривога червоного рівня", "Red-level alert"),
+        (ThreatLevel::Red, false) => pick("Повітряна тривога", "Air raid alert"),
     }
 }
 
@@ -182,9 +199,15 @@ fn alert_name(level: ThreatLevel, levels: bool) -> &'static str {
 fn bell_text(event: &BellEvent) -> String {
     let n = event.lesson;
     match event.kind {
-        BellKind::LessonStart => format!("Дзвінок на {} урок", ordinal(n)),
-        BellKind::LessonEnd => format!("Дзвінок з {n}-го уроку"),
-        BellKind::Warning => format!("Попереджувальний дзвінок перед {n}-м уроком"),
+        BellKind::LessonStart => match i18n::current() {
+            Lang::Uk => format!("Дзвінок на {} урок", ordinal(n)),
+            Lang::En => format!("Bell for lesson {n}"),
+        },
+        BellKind::LessonEnd => tr!("Дзвінок з {n}-го уроку", "Bell after lesson {n}"),
+        BellKind::Warning => tr!(
+            "Попереджувальний дзвінок перед {n}-м уроком",
+            "Warning bell before lesson {n}"
+        ),
     }
 }
 
@@ -208,8 +231,8 @@ impl Controller {
         self.with_window(|w| {
             let state = w.global::<AppState>();
             state.set_config_path(path.into());
-            let names: Vec<SharedString> = REGIONS.iter().map(|r| r.name.into()).collect();
-            state.set_regions(ModelRc::new(VecModel::from(names)));
+            select_language(config.ui.language.resolve());
+            state.set_regions(ModelRc::new(VecModel::from(region_names())));
             state.set_districts(ModelRc::new(VecModel::from(district_names(
                 config.alert.region_uid,
             ))));
@@ -219,14 +242,23 @@ impl Controller {
             w.global::<Theme>().set_mode(config.ui.theme.index());
         });
         self.push_draft(true);
-        self.add_log(LogKind::Info, "Програму запущено".into());
+        self.add_log(
+            LogKind::Info,
+            pick("Програму запущено", "App started").into(),
+        );
         if let Some(error) = load_error {
             self.add_log(
                 LogKind::Error,
-                format!("Налаштування не завантажено: {error}"),
+                tr!(
+                    "Налаштування не завантажено: {error}",
+                    "Settings not loaded: {error}"
+                ),
             );
             self.show_toast(
-                "Не вдалося прочитати налаштування — використано типові",
+                pick(
+                    "Не вдалося прочитати налаштування — використано типові",
+                    "Could not read settings — using defaults",
+                ),
                 true,
             );
         }
@@ -240,8 +272,9 @@ impl Controller {
             match event {
                 Event::Alert(update) => self.on_alert(update),
                 Event::AudioError(message) => {
-                    self.add_log(LogKind::Error, format!("Звук: {message}"));
-                    self.show_toast(&format!("Звук: {message}"), true);
+                    let text = tr!("Звук: {message}", "Sound: {message}");
+                    self.add_log(LogKind::Error, text.clone());
+                    self.show_toast(&text, true);
                 }
             }
         }
@@ -295,13 +328,22 @@ impl Controller {
     fn on_bell(&mut self, event: &BellEvent) {
         let text = bell_text(event);
         if self.bells_muted() {
-            self.add_log(LogKind::Info, format!("{text} — пропущено через тривогу"));
+            self.add_log(
+                LogKind::Info,
+                tr!(
+                    "{text} — пропущено через тривогу",
+                    "{text} — skipped due to alert"
+                ),
+            );
             return;
         }
         if self.memorial_active() {
             self.add_log(
                 LogKind::Info,
-                format!("{text} — пропущено через хвилину мовчання"),
+                tr!(
+                    "{text} — пропущено через хвилину мовчання",
+                    "{text} — skipped due to minute of silence"
+                ),
             );
             return;
         }
@@ -323,10 +365,18 @@ impl Controller {
 
         if update.error != self.last_error {
             match &update.error {
-                Some(error) => self.add_log(LogKind::Error, format!("API тривоги: {error}")),
-                None if self.last_error.is_some() => {
-                    self.add_log(LogKind::Info, "З'єднання з API тривоги відновлено".into())
-                }
+                Some(error) => self.add_log(
+                    LogKind::Error,
+                    tr!("API тривоги: {error}", "Alert API: {error}"),
+                ),
+                None if self.last_error.is_some() => self.add_log(
+                    LogKind::Info,
+                    pick(
+                        "З'єднання з API тривоги відновлено",
+                        "Connection to the alert API restored",
+                    )
+                    .into(),
+                ),
                 None => {}
             }
             self.last_error = update.error.clone();
@@ -362,13 +412,19 @@ impl Controller {
                 }
                 self.add_log(
                     LogKind::Alert,
-                    format!("Тривогу підвищено до червоного рівня: {region}"),
+                    tr!(
+                        "Тривогу підвищено до червоного рівня: {region}",
+                        "Alert raised to red level: {region}"
+                    ),
                 );
             }
             Transition::Changed(ThreatLevel::Yellow) => {
                 self.add_log(
                     LogKind::Info,
-                    format!("Рівень тривоги знижено до жовтого: {region}"),
+                    tr!(
+                        "Рівень тривоги знижено до жовтого: {region}",
+                        "Alert lowered to yellow level: {region}"
+                    ),
                 );
             }
             Transition::Ended(level) => {
@@ -381,9 +437,13 @@ impl Controller {
                     self.player.play(all_clear, &self.config.sound);
                 }
                 let text = match (level, levels) {
-                    (ThreatLevel::Yellow, _) => "Відбій тривоги жовтого рівня",
-                    (ThreatLevel::Red, true) => "Відбій тривоги червоного рівня",
-                    (ThreatLevel::Red, false) => "Відбій тривоги",
+                    (ThreatLevel::Yellow, _) => {
+                        pick("Відбій тривоги жовтого рівня", "Yellow-level all clear")
+                    }
+                    (ThreatLevel::Red, true) => {
+                        pick("Відбій тривоги червоного рівня", "Red-level all clear")
+                    }
+                    (ThreatLevel::Red, false) => pick("Відбій тривоги", "All clear"),
                 };
                 self.add_log(LogKind::AllClear, format!("{text}: {region}"));
             }
@@ -401,49 +461,54 @@ impl Controller {
             DayStatus::DayOff => {
                 let next = schedule
                     .next_event(now)
-                    .map(|e| format!("Найближчий урок {}", relative_day(now, e.at)))
-                    .unwrap_or_else(|| "Розклад порожній".into());
-                ("Вихідний".to_owned(), next, 0.0)
+                    .map(|e| {
+                        let when = relative_day(now, e.at);
+                        tr!("Найближчий урок {when}", "Next lesson {when}")
+                    })
+                    .unwrap_or_else(|| pick("Розклад порожній", "Schedule is empty").into());
+                (pick("Вихідний", "Day off").to_owned(), next, 0.0)
             }
-            DayStatus::BeforeLessons { first_start } => (
-                "До початку уроків".to_owned(),
-                format!(
-                    "Перший урок о {} · через {}",
-                    format_hhmm(first_start),
-                    duration_words(today.and_time(first_start) - now)
-                ),
-                0.0,
-            ),
+            DayStatus::BeforeLessons { first_start } => {
+                let start = format_hhmm(first_start);
+                let left = duration_words(today.and_time(first_start) - now);
+                (
+                    pick("До початку уроків", "Before lessons").to_owned(),
+                    tr!(
+                        "Перший урок о {start} · через {left}",
+                        "First lesson at {start} · in {left}"
+                    ),
+                    0.0,
+                )
+            }
             DayStatus::Lesson { number, ends_at } => {
                 let lesson = schedule.lessons[number - 1];
-                let mut subtitle = format!(
-                    "До кінця уроку {}",
-                    duration_words(today.and_time(ends_at) - now)
-                );
+                let left = duration_words(today.and_time(ends_at) - now);
+                let mut subtitle = tr!("До кінця уроку {left}", "Lesson ends in {left}");
                 if let Some(next) = schedule.lessons.get(number) {
-                    subtitle +=
-                        &format!(" · далі перерва {}", duration_words(next.start - ends_at));
+                    let pause = duration_words(next.start - ends_at);
+                    subtitle += &tr!(" · далі перерва {pause}", " · then a {pause} break");
                 }
                 (
-                    format!("{} урок", ordinal(number)),
+                    match i18n::current() {
+                        Lang::Uk => format!("{} урок", ordinal(number)),
+                        Lang::En => format!("Lesson {number}"),
+                    },
                     subtitle,
                     progress(now - today.and_time(lesson.start), lesson.duration()),
                 )
             }
             DayStatus::Break { next, next_start } => {
                 let break_start = schedule.lessons[next - 2].end;
+                let left = duration_words(today.and_time(next_start) - now);
                 (
-                    "Перерва".to_owned(),
-                    format!(
-                        "До {next}-го уроку {}",
-                        duration_words(today.and_time(next_start) - now)
-                    ),
+                    pick("Перерва", "Break").to_owned(),
+                    tr!("До {next}-го уроку {left}", "Lesson {next} in {left}"),
                     progress(now - today.and_time(break_start), next_start - break_start),
                 )
             }
             DayStatus::AfterLessons => (
-                "Уроки закінчились".to_owned(),
-                "Гарного відпочинку!".to_owned(),
+                pick("Уроки закінчились", "Lessons are over").to_owned(),
+                pick("Гарного відпочинку!", "Have a good rest!").to_owned(),
                 1.0,
             ),
         };
@@ -481,9 +546,15 @@ impl Controller {
                 }
                 None => {
                     state.set_next_bell_time("--:--".into());
-                    state.set_next_bell_label("Розклад порожній".into());
+                    state.set_next_bell_label(pick("Розклад порожній", "Schedule is empty").into());
                     state.set_next_bell_countdown("—".into());
-                    state.set_next_bell_in("Додайте уроки на сторінці «Розклад»".into());
+                    state.set_next_bell_in(
+                        pick(
+                            "Додайте уроки на сторінці «Розклад»",
+                            "Add lessons on the Schedule page",
+                        )
+                        .into(),
+                    );
                     state.set_next_bell_progress(0.0);
                 }
             }
@@ -492,30 +563,34 @@ impl Controller {
 
     fn render_alert(&self, now: DateTime<Local>) {
         let location = Location::from_config(&self.config.alert).map(|l| l.title());
-        let region = location.as_deref().unwrap_or("Область не вибрано");
+        let region = location
+            .as_deref()
+            .unwrap_or(pick("Область не вибрано", "No region selected"));
         let provider = self.config.alert.provider.title();
         let levels = self.config.alert.provider == AlertProvider::AlertsInUa;
         let tracker = &self.tracker;
+        let disabled = || {
+            (
+                AlertLevel::Disabled,
+                pick("Моніторинг вимкнено", "Monitoring is off"),
+                pick(
+                    "Увімкніть стеження за тривогою в налаштуваннях",
+                    "Turn on alert monitoring in the settings",
+                )
+                .to_owned(),
+                false,
+            )
+        };
 
         let (level, title, detail, error) = match &self.last_update {
-            _ if !self.config.alert.enabled => (
-                AlertLevel::Disabled,
-                "Моніторинг вимкнено",
-                "Увімкніть стеження за тривогою в налаштуваннях".to_owned(),
-                false,
-            ),
+            _ if !self.config.alert.enabled => disabled(),
             None => (
                 AlertLevel::Unknown,
-                "Отримання даних…",
+                pick("Отримання даних…", "Fetching data…"),
                 String::new(),
                 false,
             ),
-            Some(update) if !update.enabled => (
-                AlertLevel::Disabled,
-                "Моніторинг вимкнено",
-                "Увімкніть стеження за тривогою в налаштуваннях".to_owned(),
-                false,
-            ),
+            Some(update) if !update.enabled => disabled(),
             Some(update) => {
                 let known = tracker.last_known();
                 let yellow = known.is_yellow();
@@ -533,22 +608,29 @@ impl Controller {
                 };
                 let title = match (known.status, known.level) {
                     (AlertStatus::Active, level) => alert_name(level, levels),
-                    (AlertStatus::Partial, ThreatLevel::Yellow) => {
-                        "Тривога жовтого рівня в частині громад"
+                    (AlertStatus::Partial, ThreatLevel::Yellow) => pick(
+                        "Тривога жовтого рівня в частині громад",
+                        "Yellow-level alert in some communities",
+                    ),
+                    (AlertStatus::Partial, ThreatLevel::Red) if levels => pick(
+                        "Тривога червоного рівня в частині громад",
+                        "Red-level alert in some communities",
+                    ),
+                    (AlertStatus::Partial, ThreatLevel::Red) => {
+                        pick("Тривога в частині громад", "Alert in some communities")
                     }
-                    (AlertStatus::Partial, ThreatLevel::Red) if levels => {
-                        "Тривога червоного рівня в частині громад"
-                    }
-                    (AlertStatus::Partial, ThreatLevel::Red) => "Тривога в частині громад",
-                    (AlertStatus::Clear, _) => "Тривоги немає",
-                    (AlertStatus::Unknown, _) => "Немає даних",
+                    (AlertStatus::Clear, _) => pick("Тривоги немає", "No alert"),
+                    (AlertStatus::Unknown, _) => pick("Немає даних", "No data"),
                 };
                 let detail = match &update.error {
-                    Some(error) => format!("Помилка: {error}"),
-                    None => format!(
-                        "Оновлено о {} · {provider}",
-                        update.checked_at.format("%H:%M:%S")
-                    ),
+                    Some(error) => tr!("Помилка: {error}", "Error: {error}"),
+                    None => {
+                        let checked = update.checked_at.format("%H:%M:%S");
+                        tr!(
+                            "Оновлено о {checked} · {provider}",
+                            "Updated at {checked} · {provider}"
+                        )
+                    }
                 };
                 (level, title, detail, update.error.is_some())
             }
@@ -562,9 +644,13 @@ impl Controller {
         let (level, title, region, detail, error, started) = match self.drill {
             Some(start) => (
                 AlertLevel::Active,
-                "Навчальна тривога",
-                "Тренування евакуації",
-                "Завершіть її кнопкою «Завершити навчальну тривогу»".to_owned(),
+                pick("Навчальна тривога", "Alert drill"),
+                pick("Тренування евакуації", "Evacuation training"),
+                pick(
+                    "Завершіть її кнопкою «Завершити навчальну тривогу»",
+                    "End it with the “End alert drill” button",
+                )
+                .to_owned(),
                 false,
                 Some(start),
             ),
@@ -572,13 +658,14 @@ impl Controller {
         };
 
         let since = if let Some(start) = started {
-            format!(
-                "Триває {} · з {}",
-                duration_words(now - start),
-                start.format("%H:%M")
+            let (lasts, from) = (duration_words(now - start), start.format("%H:%M"));
+            tr!(
+                "Триває {lasts} · з {from}",
+                "Lasting {lasts} · since {from}"
             )
         } else if let Some(end) = tracker.ended_at() {
-            format!("Відбій о {}", end.format("%H:%M"))
+            let end = end.format("%H:%M");
+            tr!("Відбій о {end}", "All clear at {end}")
         } else {
             String::new()
         };
@@ -663,14 +750,21 @@ impl Controller {
 
     fn ring_bell_manually(&mut self) {
         self.player.play(Sound::Bell, &self.config.sound);
-        self.add_log(LogKind::Bell, "Дзвінок подано вручну".into());
+        self.add_log(
+            LogKind::Bell,
+            pick("Дзвінок подано вручну", "Bell rung manually").into(),
+        );
     }
 
     fn play_manually(&mut self, sound: Sound) {
         self.player.play(sound, &self.config.sound);
         self.add_log(
             LogKind::Info,
-            format!("Перевірка звуку: {}", sound.title().to_lowercase()),
+            tr!(
+                "Перевірка звуку: {}",
+                "Sound test: {}",
+                sound.title().to_lowercase()
+            ),
         );
     }
 
@@ -687,7 +781,11 @@ impl Controller {
         if !manual && self.bells_muted() {
             self.add_log(
                 LogKind::Info,
-                "Хвилину мовчання пропущено через тривогу".into(),
+                pick(
+                    "Хвилину мовчання пропущено через тривогу",
+                    "Minute of silence skipped due to alert",
+                )
+                .into(),
             );
             return;
         }
@@ -697,10 +795,19 @@ impl Controller {
             sounds.push(Sound::Anthem);
         }
         let text = match (manual, sounds.len()) {
-            (false, 1) => "Хвилина мовчання",
-            (false, _) => "Хвилина мовчання і гімн України",
-            (true, 1) => "Хвилину мовчання розпочато вручну",
-            (true, _) => "Хвилину мовчання і гімн розпочато вручну",
+            (false, 1) => pick("Хвилина мовчання", "Minute of silence"),
+            (false, _) => pick(
+                "Хвилина мовчання і гімн України",
+                "Minute of silence and national anthem",
+            ),
+            (true, 1) => pick(
+                "Хвилину мовчання розпочато вручну",
+                "Minute of silence started manually",
+            ),
+            (true, _) => pick(
+                "Хвилину мовчання і гімн розпочато вручну",
+                "Minute of silence and anthem started manually",
+            ),
         };
         self.player.play_sequence(sounds, &self.config.sound);
         self.memorial_started = Some(Instant::now());
@@ -708,7 +815,11 @@ impl Controller {
         if anthem_missing {
             self.add_log(
                 LogKind::Info,
-                "Гімн не подано: у налаштуваннях не вибрано файл гімну".into(),
+                pick(
+                    "Гімн не подано: у налаштуваннях не вибрано файл гімну",
+                    "Anthem not played: no anthem file selected in the settings",
+                )
+                .into(),
             );
         }
     }
@@ -719,7 +830,10 @@ impl Controller {
             None => {
                 self.drill = Some(Local::now());
                 self.player.play(Sound::Siren, &self.config.sound);
-                self.add_log(LogKind::Alert, "Навчальну тривогу розпочато".into());
+                self.add_log(
+                    LogKind::Alert,
+                    pick("Навчальну тривогу розпочато", "Alert drill started").into(),
+                );
             }
             Some(_) => {
                 if self.config.alert.play_all_clear {
@@ -727,7 +841,10 @@ impl Controller {
                 } else {
                     self.player.stop();
                 }
-                self.add_log(LogKind::AllClear, "Навчальну тривогу завершено".into());
+                self.add_log(
+                    LogKind::AllClear,
+                    pick("Навчальну тривогу завершено", "Alert drill ended").into(),
+                );
             }
         }
     }
@@ -857,8 +974,11 @@ impl Controller {
                 if self.persist(config) {
                     self.draft = ScheduleDraft::from_schedule(&self.config.schedule);
                     self.push_draft(true);
-                    self.add_log(LogKind::Info, "Розклад змінено".into());
-                    self.show_toast("Розклад збережено", false);
+                    self.add_log(
+                        LogKind::Info,
+                        pick("Розклад змінено", "Schedule changed").into(),
+                    );
+                    self.show_toast(pick("Розклад збережено", "Schedule saved"), false);
                 }
             }
             Err(error) => self.show_toast(&error, true),
@@ -880,7 +1000,10 @@ impl Controller {
                 true
             }
             Err(err) => {
-                let message = format!("Не вдалося зберегти налаштування: {err:#}");
+                let message = tr!(
+                    "Не вдалося зберегти налаштування: {err:#}",
+                    "Could not save settings: {err:#}"
+                );
                 self.add_log(LogKind::Error, message.clone());
                 self.show_toast(&message, true);
                 false
@@ -920,7 +1043,13 @@ impl Controller {
 
     fn save_settings(&mut self) {
         if !self.memorial_time_valid() {
-            self.show_toast("Час хвилини мовчання — у форматі ГГ:ХХ", true);
+            self.show_toast(
+                pick(
+                    "Час хвилини мовчання — у форматі ГГ:ХХ",
+                    "Minute of silence time must be HH:MM",
+                ),
+                true,
+            );
             return;
         }
         let Some(config) = self.form_config() else {
@@ -950,8 +1079,11 @@ impl Controller {
             state.set_settings_dirty(false);
             state.set_memorial_time_valid(true);
         });
-        self.add_log(LogKind::Info, "Налаштування змінено".into());
-        self.show_toast("Налаштування збережено", false);
+        self.add_log(
+            LogKind::Info,
+            pick("Налаштування змінено", "Settings changed").into(),
+        );
+        self.show_toast(pick("Налаштування збережено", "Settings saved"), false);
     }
 
     fn theme_changed(&mut self, index: i32) {
@@ -962,6 +1094,23 @@ impl Controller {
         config.ui.theme = theme;
         self.persist(config);
         self.settings_changed();
+    }
+
+    fn language_changed(&mut self, index: i32) {
+        let language = Language::from_index(index);
+        select_language(language.resolve());
+        // Мова, як і тема, застосовується і зберігається одразу.
+        let mut config = self.config.clone();
+        config.ui.language = language;
+        self.persist(config);
+        // Тексти, які складає Rust-код, — заново новою мовою (журнал лишається як є).
+        self.with_window(|w| {
+            w.global::<AppState>()
+                .set_regions(ModelRc::new(VecModel::from(region_names())));
+        });
+        self.push_draft(false);
+        self.settings_changed();
+        self.tick();
     }
 }
 
@@ -996,6 +1145,18 @@ mod tests {
             bell_text(&event(BellKind::Warning)),
             "Попереджувальний дзвінок перед 3-м уроком"
         );
+    }
+
+    #[test]
+    fn bell_texts_in_english() {
+        i18n::set(Lang::En);
+        let event = BellEvent {
+            at: at(9, 0),
+            kind: BellKind::LessonStart,
+            lesson: 3,
+        };
+        assert_eq!(bell_text(&event), "Bell for lesson 3");
+        i18n::set(Lang::Uk);
     }
 
     #[test]

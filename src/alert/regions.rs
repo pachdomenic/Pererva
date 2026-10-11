@@ -1,18 +1,23 @@
 //! Довідник областей і районів України з ідентифікаторами alerts.in.ua.
 
+use crate::i18n::{Lang, current, pick, transliterate};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Region {
     /// Ідентифікатор за класифікацією alerts.in.ua.
     pub uid: u32,
     pub name: &'static str,
+    /// Назва англійською.
+    pub name_en: &'static str,
     /// Альтернативні назви, під якими область може з'являтися в інших джерелах.
     pub aliases: &'static [&'static str],
 }
 
-const fn region(uid: u32, name: &'static str) -> Region {
+const fn region(uid: u32, name: &'static str, name_en: &'static str) -> Region {
     Region {
         uid,
         name,
+        name_en,
         aliases: &[],
     }
 }
@@ -22,39 +27,48 @@ pub const REGIONS: &[Region] = &[
     Region {
         uid: 29,
         name: "Автономна Республіка Крим",
+        name_en: "Autonomous Republic of Crimea",
         aliases: &["АР Крим", "Крим"],
     },
-    region(4, "Вінницька область"),
-    region(8, "Волинська область"),
-    region(9, "Дніпропетровська область"),
-    region(28, "Донецька область"),
-    region(10, "Житомирська область"),
-    region(11, "Закарпатська область"),
-    region(12, "Запорізька область"),
-    region(13, "Івано-Франківська область"),
-    region(14, "Київська область"),
-    region(15, "Кіровоградська область"),
-    region(16, "Луганська область"),
-    region(27, "Львівська область"),
-    region(17, "Миколаївська область"),
-    region(18, "Одеська область"),
-    region(19, "Полтавська область"),
-    region(5, "Рівненська область"),
-    region(20, "Сумська область"),
-    region(21, "Тернопільська область"),
-    region(22, "Харківська область"),
-    region(23, "Херсонська область"),
-    region(3, "Хмельницька область"),
-    region(24, "Черкаська область"),
-    region(26, "Чернівецька область"),
-    region(25, "Чернігівська область"),
-    region(31, "м. Київ"),
+    region(4, "Вінницька область", "Vinnytsia Oblast"),
+    region(8, "Волинська область", "Volyn Oblast"),
+    region(9, "Дніпропетровська область", "Dnipropetrovsk Oblast"),
+    region(28, "Донецька область", "Donetsk Oblast"),
+    region(10, "Житомирська область", "Zhytomyr Oblast"),
+    region(11, "Закарпатська область", "Zakarpattia Oblast"),
+    region(12, "Запорізька область", "Zaporizhzhia Oblast"),
+    region(13, "Івано-Франківська область", "Ivano-Frankivsk Oblast"),
+    region(14, "Київська область", "Kyiv Oblast"),
+    region(15, "Кіровоградська область", "Kirovohrad Oblast"),
+    region(16, "Луганська область", "Luhansk Oblast"),
+    region(27, "Львівська область", "Lviv Oblast"),
+    region(17, "Миколаївська область", "Mykolaiv Oblast"),
+    region(18, "Одеська область", "Odesa Oblast"),
+    region(19, "Полтавська область", "Poltava Oblast"),
+    region(5, "Рівненська область", "Rivne Oblast"),
+    region(20, "Сумська область", "Sumy Oblast"),
+    region(21, "Тернопільська область", "Ternopil Oblast"),
+    region(22, "Харківська область", "Kharkiv Oblast"),
+    region(23, "Херсонська область", "Kherson Oblast"),
+    region(3, "Хмельницька область", "Khmelnytskyi Oblast"),
+    region(24, "Черкаська область", "Cherkasy Oblast"),
+    region(26, "Чернівецька область", "Chernivtsi Oblast"),
+    region(25, "Чернігівська область", "Chernihiv Oblast"),
+    region(31, "м. Київ", "Kyiv City"),
     Region {
         uid: 30,
         name: "м. Севастополь",
+        name_en: "Sevastopol City",
         aliases: &["Севастополь"],
     },
 ];
+
+impl Region {
+    /// Назва мовою інтерфейсу.
+    pub fn title(&self) -> &'static str {
+        pick(self.name, self.name_en)
+    }
+}
 
 pub fn by_uid(uid: u32) -> Option<&'static Region> {
     REGIONS.iter().find(|r| r.uid == uid)
@@ -214,6 +228,20 @@ pub const DISTRICTS: &[District] = &[
     district(72, 13, "Надвірнянський район"),
 ];
 
+impl District {
+    /// Назва мовою інтерфейсу; англійською — транслітерація:
+    /// «Бориспільський район» → «Boryspilskyi district».
+    pub fn title(&self) -> String {
+        match current() {
+            Lang::Uk => self.name.to_owned(),
+            Lang::En => {
+                let base = self.name.strip_suffix(" район").unwrap_or(self.name);
+                format!("{} district", transliterate(base))
+            }
+        }
+    }
+}
+
 /// Райони області в алфавітному порядку.
 pub fn districts_of(region_uid: u32) -> impl Iterator<Item = &'static District> {
     DISTRICTS.iter().filter(move |d| d.region_uid == region_uid)
@@ -300,6 +328,19 @@ mod tests {
         assert_eq!(districts_of(31).count(), 0);
         assert_eq!(district_by_uid(78).unwrap().region_uid, 14);
         assert!(district_by_uid(14).is_none());
+    }
+
+    #[test]
+    fn english_titles() {
+        crate::i18n::set(Lang::En);
+        assert_eq!(by_uid(14).unwrap().title(), "Kyiv Oblast");
+        assert_eq!(
+            district_by_uid(78).unwrap().title(),
+            "Boryspilskyi district"
+        );
+        crate::i18n::set(Lang::Uk);
+        assert_eq!(district_by_uid(78).unwrap().title(), "Бориспільський район");
+        assert!(DISTRICTS.iter().all(|d| d.name.ends_with(" район")));
     }
 
     #[test]

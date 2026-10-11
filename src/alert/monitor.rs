@@ -2,6 +2,7 @@
 
 use super::{AlertSource, AlertStatus, Location, Reading, source_for};
 use crate::config::AlertConfig;
+use crate::i18n::pick;
 use chrono::{DateTime, Local};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
@@ -80,7 +81,10 @@ fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
     let mut update = AlertUpdate {
         enabled: config.enabled,
         reading: AlertStatus::Unknown.into(),
-        region: location.map_or_else(|| "Невідома область".to_owned(), |l| l.title()),
+        region: location.map_or_else(
+            || pick("Невідома область", "Unknown region").to_owned(),
+            |l| l.title(),
+        ),
         error: None,
         checked_at: Local::now(),
     };
@@ -88,7 +92,7 @@ fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
         return update;
     }
     let Some(location) = location else {
-        update.error = Some("область не вибрано".into());
+        update.error = Some(pick("область не вибрано", "no region selected").into());
         return update;
     };
     match source.fetch(&location) {

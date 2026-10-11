@@ -1,5 +1,7 @@
-//! Форматування дат, часу і тривалостей українською.
+//! Форматування дат, часу і тривалостей мовою інтерфейсу.
 
+use crate::i18n::{Lang, current, pick};
+use crate::tr;
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Weekday};
 
 const MONTHS_GENITIVE: [&str; 12] = [
@@ -16,6 +18,29 @@ const MONTHS_GENITIVE: [&str; 12] = [
     "листопада",
     "грудня",
 ];
+
+/// Назва місяця англійською: «October».
+fn month_name(date: impl Datelike) -> String {
+    match current() {
+        Lang::Uk => MONTHS_GENITIVE[date.month0() as usize].to_owned(),
+        Lang::En => chrono::Month::try_from(date.month() as u8)
+            .map(|m| m.name().to_owned())
+            .unwrap_or_default(),
+    }
+}
+
+/// Назва дня тижня англійською: «Monday».
+fn weekday_en(day: Weekday) -> &'static str {
+    match day {
+        Weekday::Mon => "Monday",
+        Weekday::Tue => "Tuesday",
+        Weekday::Wed => "Wednesday",
+        Weekday::Thu => "Thursday",
+        Weekday::Fri => "Friday",
+        Weekday::Sat => "Saturday",
+        Weekday::Sun => "Sunday",
+    }
+}
 
 pub fn weekday_name(day: Weekday) -> &'static str {
     match day {
@@ -40,14 +65,14 @@ pub fn weekday_accusative(day: Weekday) -> &'static str {
     }
 }
 
-/// «понеділок, 12 жовтня».
+/// «понеділок, 12 жовтня» / «Monday, October 12».
 pub fn long_date(date: NaiveDate) -> String {
-    format!(
-        "{}, {} {}",
-        weekday_name(date.weekday()),
-        date.day(),
-        MONTHS_GENITIVE[date.month0() as usize]
-    )
+    let day = date.day();
+    let month = month_name(date);
+    match current() {
+        Lang::Uk => format!("{}, {day} {month}", weekday_name(date.weekday())),
+        Lang::En => format!("{}, {month} {day}", weekday_en(date.weekday())),
+    }
 }
 
 /// Порядковий номер уроку: «3-й».
@@ -60,17 +85,17 @@ pub fn duration_words(duration: Duration) -> String {
     let total = duration.num_seconds().max(0);
     let minutes = (total + 59) / 60;
     if total < 60 {
-        return "менше хвилини".into();
+        return pick("менше хвилини", "less than a minute").into();
     }
     let days = minutes / (24 * 60);
     let hours = minutes % (24 * 60) / 60;
     let mins = minutes % 60;
     match (days, hours, mins) {
-        (0, 0, m) => format!("{m} хв"),
-        (0, h, 0) => format!("{h} год"),
-        (0, h, m) => format!("{h} год {m} хв"),
-        (d, 0, _) => format!("{d} дн"),
-        (d, h, _) => format!("{d} дн {h} год"),
+        (0, 0, m) => tr!("{m} хв", "{m} min"),
+        (0, h, 0) => tr!("{h} год", "{h} h"),
+        (0, h, m) => tr!("{h} год {m} хв", "{h} h {m} min"),
+        (d, 0, _) => tr!("{d} дн", "{d} d"),
+        (d, h, _) => tr!("{d} дн {h} год", "{d} d {h} h"),
     }
 }
 
@@ -79,7 +104,8 @@ pub fn countdown(duration: Duration) -> String {
     let total = duration.num_seconds().max(0);
     let (h, m, s) = (total / 3600, total % 3600 / 60, total % 60);
     if h >= 100 {
-        format!("{} дн", h / 24)
+        let d = h / 24;
+        tr!("{d} дн", "{d} d")
     } else if h > 0 {
         format!("{h}:{m:02}:{s:02}")
     } else {
@@ -91,15 +117,16 @@ pub fn countdown(duration: Duration) -> String {
 pub fn relative_day(now: NaiveDateTime, at: NaiveDateTime) -> String {
     let time = at.format("%H:%M");
     let days = (at.date() - now.date()).num_days();
+    let weekday = at.weekday();
+    let (day, month) = (at.day(), month_name(at));
     match days {
-        0 => format!("сьогодні о {time}"),
-        1 => format!("завтра о {time}"),
-        2..=6 => format!("у {} о {time}", weekday_accusative(at.weekday())),
-        _ => format!(
-            "{} {} о {time}",
-            at.day(),
-            MONTHS_GENITIVE[at.month0() as usize]
-        ),
+        0 => tr!("сьогодні о {time}", "today at {time}"),
+        1 => tr!("завтра о {time}", "tomorrow at {time}"),
+        2..=6 => match current() {
+            Lang::Uk => format!("у {} о {time}", weekday_accusative(weekday)),
+            Lang::En => format!("on {} at {time}", weekday_en(weekday)),
+        },
+        _ => tr!("{day} {month} о {time}", "{month} {day} at {time}"),
     }
 }
 
@@ -147,6 +174,21 @@ mod tests {
         assert_eq!(relative_day(now, dt(16, 8, 30)), "у п'ятницю о 08:30");
         assert_eq!(relative_day(now, dt(19, 8, 30)), "у понеділок о 08:30");
         assert_eq!(relative_day(now, dt(26, 8, 30)), "26 жовтня о 08:30");
+    }
+
+    #[test]
+    fn english() {
+        crate::i18n::set(Lang::En);
+        assert_eq!(long_date(dt(12, 0, 0).date()), "Monday, October 12");
+        assert_eq!(duration_words(Duration::seconds(30)), "less than a minute");
+        assert_eq!(duration_words(Duration::minutes(65)), "1 h 5 min");
+        assert_eq!(countdown(Duration::hours(130)), "5 d");
+        let now = dt(14, 16, 0);
+        assert_eq!(relative_day(now, dt(14, 17, 5)), "today at 17:05");
+        assert_eq!(relative_day(now, dt(15, 8, 30)), "tomorrow at 08:30");
+        assert_eq!(relative_day(now, dt(16, 8, 30)), "on Friday at 08:30");
+        assert_eq!(relative_day(now, dt(26, 8, 30)), "October 26 at 08:30");
+        crate::i18n::set(Lang::Uk);
     }
 
     #[test]

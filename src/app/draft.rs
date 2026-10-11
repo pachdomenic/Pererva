@@ -1,7 +1,9 @@
 //! Чернетка розкладу, яку редагує користувач, і її перевірка.
 
 use super::format::{duration_words, ordinal};
+use crate::i18n::pick;
 use crate::schedule::{Lesson, Schedule, format_hhmm, parse_hhmm};
+use crate::tr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DraftRow {
@@ -58,7 +60,8 @@ impl ScheduleDraft {
         let mut first_error: Option<String> = None;
         let mut report = |n: usize, message: &str| {
             if first_error.is_none() {
-                first_error = Some(format!("{} урок: {message}", ordinal(n)));
+                let lesson = pick(format!("{} урок", ordinal(n)), format!("Lesson {n}"));
+                first_error = Some(format!("{lesson}: {message}"));
             }
         };
 
@@ -69,26 +72,34 @@ impl ScheduleDraft {
                 (None, _) | (_, None) => {
                     check.start_error = start.is_none();
                     check.end_error = end.is_none();
-                    check.note = "Час у форматі ГГ:ХХ".into();
-                    report(n, "неправильний формат часу");
+                    check.note = pick("Час у форматі ГГ:ХХ", "Time as HH:MM").into();
+                    report(n, pick("неправильний формат часу", "invalid time format"));
                 }
                 (Some(s), Some(e)) if e <= s => {
                     check.end_error = true;
-                    check.note = "Кінець раніше початку".into();
-                    report(n, "кінець раніше початку");
+                    check.note = pick("Кінець раніше початку", "Ends before it starts").into();
+                    report(n, pick("кінець раніше початку", "ends before it starts"));
                 }
                 (Some(s), Some(e)) => {
                     let previous_end = i.checked_sub(1).and_then(|p| parsed[p].1);
                     if previous_end.is_some_and(|pe| s < pe) {
                         check.start_error = true;
-                        check.note = "Перетинається з попереднім".into();
-                        report(n, "починається до кінця попереднього");
+                        check.note =
+                            pick("Перетинається з попереднім", "Overlaps the previous one").into();
+                        report(
+                            n,
+                            pick(
+                                "починається до кінця попереднього",
+                                "starts before the previous one ends",
+                            ),
+                        );
                     } else {
                         check.note = duration_words(e - s);
                         if let Some(next_start) = parsed.get(i + 1).and_then(|n| n.0)
                             && next_start >= e
                         {
-                            check.note += &format!(" · перерва {}", duration_words(next_start - e));
+                            let pause = duration_words(next_start - e);
+                            check.note += &tr!(" · перерва {pause}", " · break {pause}");
                         }
                     }
                 }

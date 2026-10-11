@@ -13,7 +13,7 @@ component SoundFileRow {
     in property <string> label;
     in property <string> path;
     in property <int> sound;
-    in property <string> placeholder: "Вбудований звук";
+    in property <string> placeholder: @tr("Вбудований звук");
     callback edited(string);
 
     min-height: 56px;
@@ -35,7 +35,7 @@ component SoundFileRow {
             IconButton {
                 icon: Icons.play;
                 kind: tonal;
-                tooltip: "Прослухати";
+                tooltip: @tr("Прослухати");
                 clicked => { AppState.preview-sound(sound); }
             }
         }
@@ -57,7 +57,7 @@ export component SettingsPage {
             alignment: start;
 
             Text {
-                text: "Налаштування";
+                text: @tr("Налаштування");
                 color: Theme.on-surface;
                 font-size: Type.headline-large;
                 font-weight: Type.heavy;
@@ -72,14 +72,14 @@ export component SettingsPage {
                     spacing: 12px;
 
                     SectionHeader {
-                        text: "Повітряна тривога";
-                        subtitle: "Джерело даних і поведінка під час тривоги";
+                        text: @tr("Повітряна тривога");
+                        subtitle: @tr("Джерело даних і поведінка під час тривоги");
                         icon: Icons.siren;
                     }
 
                     SettingRow {
-                        title: "Стежити за тривогою";
-                        description: "Періодично опитувати API і подавати сирену";
+                        title: @tr("Стежити за тривогою");
+                        description: @tr("Періодично опитувати API і подавати сирену");
 
                         Switch {
                             checked: AppState.settings.alert-enabled;
@@ -92,7 +92,7 @@ export component SettingsPage {
                     Divider { }
 
                     Text {
-                        text: "Джерело даних";
+                        text: @tr("Джерело даних");
                         color: Theme.on-surface-variant;
                         font-size: Type.label-large;
                         font-weight: Type.medium;
@@ -103,7 +103,7 @@ export component SettingsPage {
                         ButtonGroup {
                             items: [
                                 { label: "alerts.in.ua", icon: Icons.key },
-                                { label: "Ubilling (без токена)", icon: Icons.public },
+                                { label: @tr("Ubilling (без токена)"), icon: Icons.public },
                             ];
                             selected: AppState.settings.provider;
                             selected-changed(index) => {
@@ -114,9 +114,9 @@ export component SettingsPage {
                     }
 
                     if AppState.settings.provider == 0: TextField {
-                        label: "Токен API alerts.in.ua";
-                        placeholder: "Вставте токен";
-                        supporting-text: "Отримати токен можна на devs.alerts.in.ua";
+                        label: @tr("Токен API alerts.in.ua");
+                        placeholder: @tr("Вставте токен");
+                        supporting-text: @tr("Отримати токен можна на devs.alerts.in.ua");
                         password: true;
                         leading-icon: Icons.key;
                         text: AppState.settings.token;
@@ -130,7 +130,7 @@ export component SettingsPage {
                     Rectangle { height: 4px; }
 
                     Dropdown {
-                        label: "Область";
+                        label: @tr("Область");
                         model: AppState.regions;
                         current-index: AppState.settings.region;
                         leading-icon: Icons.location;
@@ -146,7 +146,7 @@ export component SettingsPage {
 
                     // Тривогу по району повертає лише alerts.in.ua.
                     if AppState.settings.provider == 0 && AppState.districts.length > 1: Dropdown {
-                        label: "Район";
+                        label: @tr("Район");
                         model: AppState.districts;
                         current-index: AppState.settings.district;
                         leading-icon: Icons.location;
@@ -158,15 +158,15 @@ export component SettingsPage {
                     }
 
                     SettingRow {
-                        title: "Інтервал опитування";
-                        description: "Як часто перевіряти стан тривоги";
+                        title: @tr("Інтервал опитування");
+                        description: @tr("Як часто перевіряти стан тривоги");
 
                         Stepper {
                             value: AppState.settings.poll-seconds;
                             minimum: 10;
                             maximum: 600;
                             step: 5;
-                            suffix: "с";
+                            suffix: @tr("с");
                             changed(value) => {
                                 AppState.settings.poll-seconds = value;
                                 AppState.settings-changed();
@@ -175,8 +175,8 @@ export component SettingsPage {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Вимикати дзвінки під час тривоги";
-                        description: "Шкільні дзвінки не подаються до відбою";
+                        title: @tr("Вимикати дзвінки під час тривоги");
+                        description: @tr("Шкільні дзвінки не подаються до відбою");
 
                         Switch {
                             checked: AppState.settings.mute-bells;
@@ -187,8 +187,8 @@ export component SettingsPage {
                         }
                     }
                     SettingRow {
-                        title: "Часткова тривога — це тривога";
-                        description: "Реагувати, якщо тривогу оголошено лише в частині громад області чи району";
+                        title: @tr("Часткова тривога — це тривога");
+                        description: @tr("Реагувати, якщо тривогу оголошено лише в частині громад області чи району");
 
                         Switch {
                             checked: AppState.settings.partial-is-alert;
@@ -204,17 +204,17 @@ export component SettingsPage {
 
                         Divider { }
                         Text {
-                            text: "Тривога жовтого рівня";
+                            text: @tr("Тривога жовтого рівня");
                             color: Theme.on-surface-variant;
                             font-size: Type.label-large;
                             font-weight: Type.medium;
                         }
                         Text {
                             text: AppState.settings.yellow-mode == 0
-                                ? "Лише показується на головній: без сирени, дзвінки подаються"
+                                ? @tr("Лише показується на головній: без сирени, дзвінки подаються")
                                 : AppState.settings.yellow-mode == 1
-                                ? "Як тривога червоного рівня: та сама сирена і той самий відбій"
-                                : "Як тривога червоного рівня, але з власними сигналами початку і відбою";
+                                ? @tr("Як тривога червоного рівня: та сама сирена і той самий відбій")
+                                : @tr("Як тривога червоного рівня, але з власними сигналами початку і відбою");
                             color: Theme.on-surface-variant;
                             font-size: Type.body-medium;
                             wrap: word-wrap;
@@ -224,9 +224,9 @@ export component SettingsPage {
 
                             ButtonGroup {
                                 items: [
-                                    { label: "Не реагувати", icon: Icons.info },
-                                    { label: "Як червоного рівня", icon: Icons.siren },
-                                    { label: "Окремі звуки", icon: Icons.sound },
+                                    { label: @tr("Не реагувати"), icon: Icons.info },
+                                    { label: @tr("Як червоного рівня"), icon: Icons.siren },
+                                    { label: @tr("Окремі звуки"), icon: Icons.sound },
                                 ];
                                 selected: AppState.settings.yellow-mode;
                                 selected-changed(index) => {
@@ -236,8 +236,8 @@ export component SettingsPage {
                             }
                         }
                         if AppState.settings.yellow-mode == 2: SoundFileRow {
-                            label: "Сигнал тривоги жовтого рівня";
-                            placeholder: "Вбудований сигнал «ті-ту»";
+                            label: @tr("Сигнал тривоги жовтого рівня");
+                            placeholder: @tr("Вбудований сигнал «ті-ту»");
                             path: AppState.settings.yellow-siren-file;
                             sound: 5;
                             edited(text) => {
@@ -246,8 +246,8 @@ export component SettingsPage {
                             }
                         }
                         if AppState.settings.yellow-mode == 2: SoundFileRow {
-                            label: "Відбій тривоги жовтого рівня";
-                            placeholder: "Вбудований передзвін відбою";
+                            label: @tr("Відбій тривоги жовтого рівня");
+                            placeholder: @tr("Вбудований передзвін відбою");
                             path: AppState.settings.yellow-all-clear-file;
                             sound: 6;
                             edited(text) => {
@@ -259,8 +259,8 @@ export component SettingsPage {
                     }
 
                     SettingRow {
-                        title: "Сигнал відбою";
-                        description: "Подавати передзвін після завершення тривоги";
+                        title: @tr("Сигнал відбою");
+                        description: @tr("Подавати передзвін після завершення тривоги");
 
                         Switch {
                             checked: AppState.settings.play-all-clear;
@@ -282,14 +282,14 @@ export component SettingsPage {
                     spacing: 12px;
 
                     SectionHeader {
-                        text: "Хвилина мовчання";
-                        subtitle: "Щоденне вшанування загиблих, після нього — державний гімн";
+                        text: @tr("Хвилина мовчання");
+                        subtitle: @tr("Щоденне вшанування загиблих, після нього — державний гімн");
                         icon: Icons.flag;
                     }
 
                     SettingRow {
-                        title: "Подавати хвилину мовчання";
-                        description: "Метроном протягом хвилини або власна доріжка";
+                        title: @tr("Подавати хвилину мовчання");
+                        description: @tr("Метроном протягом хвилини або власна доріжка");
 
                         Switch {
                             checked: AppState.settings.memorial-enabled;
@@ -300,12 +300,12 @@ export component SettingsPage {
                         }
                     }
                     SettingRow {
-                        title: "Час";
-                        description: "Загальнонаціональна хвилина мовчання — о 09:00";
+                        title: @tr("Час");
+                        description: @tr("Загальнонаціональна хвилина мовчання — о 09:00");
 
                         TextField {
                             width: 112px;
-                            label: "ГГ:ХХ";
+                            label: @tr("ГГ:ХХ");
                             centered: true;
                             text: AppState.settings.memorial-time;
                             error: !AppState.memorial-time-valid;
@@ -317,8 +317,8 @@ export component SettingsPage {
                         }
                     }
                     SettingRow {
-                        title: "Лише в навчальні дні";
-                        description: "Інакше — щодня, включно з вихідними";
+                        title: @tr("Лише в навчальні дні");
+                        description: @tr("Інакше — щодня, включно з вихідними");
 
                         Switch {
                             checked: AppState.settings.memorial-school-days;
@@ -329,10 +329,10 @@ export component SettingsPage {
                         }
                     }
                     SettingRow {
-                        title: "Гімн після хвилини мовчання";
+                        title: @tr("Гімн після хвилини мовчання");
                         description: AppState.settings.anthem-file == ""
-                            ? "Вкажіть файл гімну нижче, інакше гімн не прозвучить"
-                            : "Звучить одразу після хвилини мовчання";
+                            ? @tr("Вкажіть файл гімну нижче, інакше гімн не прозвучить")
+                            : @tr("Звучить одразу після хвилини мовчання");
 
                         Switch {
                             checked: AppState.settings.memorial-anthem;
@@ -347,7 +347,7 @@ export component SettingsPage {
                     Rectangle { height: 4px; }
 
                     SoundFileRow {
-                        label: "Доріжка хвилини мовчання";
+                        label: @tr("Доріжка хвилини мовчання");
                         path: AppState.settings.silence-file;
                         sound: 3;
                         edited(text) => {
@@ -356,8 +356,8 @@ export component SettingsPage {
                         }
                     }
                     SoundFileRow {
-                        label: "Доріжка гімну";
-                        placeholder: "Файл не вибрано";
+                        label: @tr("Доріжка гімну");
+                        placeholder: @tr("Файл не вибрано");
                         path: AppState.settings.anthem-file;
                         sound: 4;
                         edited(text) => {
@@ -377,8 +377,8 @@ export component SettingsPage {
                     spacing: 12px;
 
                     SectionHeader {
-                        text: "Звук";
-                        subtitle: "Гучність, тривалість і власні аудіофайли (WAV, MP3, FLAC, OGG)";
+                        text: @tr("Звук");
+                        subtitle: @tr("Гучність, тривалість і власні аудіофайли (WAV, MP3, FLAC, OGG)");
                         icon: Icons.volume;
                     }
 
@@ -414,13 +414,13 @@ export component SettingsPage {
                     }
 
                     SettingRow {
-                        title: "Тривалість шкільного дзвінка";
+                        title: @tr("Тривалість шкільного дзвінка");
 
                         Stepper {
                             value: AppState.settings.bell-seconds;
                             minimum: 1;
                             maximum: 60;
-                            suffix: "с";
+                            suffix: @tr("с");
                             changed(value) => {
                                 AppState.settings.bell-seconds = value;
                                 AppState.settings-changed();
@@ -428,14 +428,14 @@ export component SettingsPage {
                         }
                     }
                     SettingRow {
-                        title: "Тривалість сирени";
+                        title: @tr("Тривалість сирени");
 
                         Stepper {
                             value: AppState.settings.siren-seconds;
                             minimum: 5;
                             maximum: 300;
                             step: 5;
-                            suffix: "с";
+                            suffix: @tr("с");
                             changed(value) => {
                                 AppState.settings.siren-seconds = value;
                                 AppState.settings-changed();
@@ -447,7 +447,7 @@ export component SettingsPage {
                     Rectangle { height: 4px; }
 
                     SoundFileRow {
-                        label: "Файл шкільного дзвінка";
+                        label: @tr("Файл шкільного дзвінка");
                         path: AppState.settings.bell-file;
                         sound: 0;
                         edited(text) => {
@@ -456,7 +456,7 @@ export component SettingsPage {
                         }
                     }
                     SoundFileRow {
-                        label: "Файл сирени";
+                        label: @tr("Файл сирени");
                         path: AppState.settings.siren-file;
                         sound: 1;
                         edited(text) => {
@@ -465,7 +465,7 @@ export component SettingsPage {
                         }
                     }
                     SoundFileRow {
-                        label: "Файл сигналу відбою";
+                        label: @tr("Файл сигналу відбою");
                         path: AppState.settings.all-clear-file;
                         sound: 2;
                         edited(text) => {
@@ -485,8 +485,8 @@ export component SettingsPage {
                     spacing: 16px;
 
                     SectionHeader {
-                        text: "Оформлення";
-                        subtitle: "Тема застосовується одразу";
+                        text: @tr("Оформлення");
+                        subtitle: @tr("Тема і мова застосовуються одразу");
                         icon: Icons.dark-mode;
                     }
                     HorizontalLayout {
@@ -494,9 +494,9 @@ export component SettingsPage {
 
                         ButtonGroup {
                             items: [
-                                { label: "Як у системі", icon: Icons.auto-mode },
-                                { label: "Світла", icon: Icons.light-mode },
-                                { label: "Темна", icon: Icons.dark-mode },
+                                { label: @tr("Як у системі"), icon: Icons.auto-mode },
+                                { label: @tr("Світла"), icon: Icons.light-mode },
+                                { label: @tr("Темна"), icon: Icons.dark-mode },
                             ];
                             selected: AppState.settings.theme;
                             selected-changed(index) => {
@@ -506,7 +506,30 @@ export component SettingsPage {
                         }
                     }
                     Text {
-                        text: "Файл налаштувань: " + AppState.config-path;
+                        text: @tr("Мова інтерфейсу");
+                        color: Theme.on-surface-variant;
+                        font-size: Type.label-large;
+                        font-weight: Type.medium;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+
+                        ButtonGroup {
+                            // Назви мов — кожна своєю мовою, без перекладу.
+                            items: [
+                                { label: @tr("Як у системі"), icon: Icons.auto-mode },
+                                { label: "Українська" },
+                                { label: "English" },
+                            ];
+                            selected: AppState.settings.language;
+                            selected-changed(index) => {
+                                AppState.settings.language = index;
+                                AppState.language-changed(index);
+                            }
+                        }
+                    }
+                    Text {
+                        text: @tr("Файл налаштувань: {}", AppState.config-path);
                         color: Theme.on-surface-variant;
                         font-size: Type.body-small;
                         wrap: word-wrap;
@@ -536,14 +559,14 @@ export component SettingsPage {
 
             Text {
                 horizontal-stretch: 1;
-                text: "Є незбережені зміни";
+                text: @tr("Є незбережені зміни");
                 color: Theme.on-surface;
                 font-size: Type.body-large;
                 font-weight: Type.medium;
                 vertical-alignment: center;
             }
             Button {
-                text: "Зберегти";
+                text: @tr("Зберегти");
                 icon: Icons.save;
                 clicked => { AppState.save-settings(); }
             }

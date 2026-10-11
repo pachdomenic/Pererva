@@ -5,6 +5,8 @@
 
 use super::synth::Synth;
 use crate::config::SoundConfig;
+use crate::i18n::pick;
+use crate::tr;
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
 use std::fs::File;
 use std::path::Path;
@@ -38,13 +40,13 @@ impl Sound {
 
     pub fn title(self) -> &'static str {
         match self {
-            Sound::Bell => "Шкільний дзвінок",
-            Sound::Siren => "Сирена тривоги",
-            Sound::AllClear => "Відбій тривоги",
-            Sound::Silence => "Хвилина мовчання",
-            Sound::Anthem => "Гімн України",
-            Sound::YellowSiren => "Сигнал тривоги жовтого рівня",
-            Sound::YellowAllClear => "Відбій тривоги жовтого рівня",
+            Sound::Bell => pick("Шкільний дзвінок", "School bell"),
+            Sound::Siren => pick("Сирена тривоги", "Air raid siren"),
+            Sound::AllClear => pick("Відбій тривоги", "All clear"),
+            Sound::Silence => pick("Хвилина мовчання", "Minute of silence"),
+            Sound::Anthem => pick("Гімн України", "National anthem of Ukraine"),
+            Sound::YellowSiren => pick("Сигнал тривоги жовтого рівня", "Yellow-level alert signal"),
+            Sound::YellowAllClear => pick("Відбій тривоги жовтого рівня", "Yellow-level all clear"),
         }
     }
 
@@ -176,8 +178,12 @@ impl Engine {
         let stream = match &self.stream {
             Some(stream) => stream,
             None => {
-                let mut stream = OutputStreamBuilder::open_default_stream()
-                    .map_err(|e| format!("звуковий пристрій недоступний: {e}"))?;
+                let mut stream = OutputStreamBuilder::open_default_stream().map_err(|e| {
+                    tr!(
+                        "звуковий пристрій недоступний: {e}",
+                        "audio device unavailable: {e}"
+                    )
+                })?;
                 stream.log_on_drop(false);
                 self.stream.insert(stream)
             }
@@ -234,14 +240,18 @@ fn source_for(sound: Sound, config: &SoundConfig) -> Result<(BoxedSource, Option
     let Some(path) = custom_file(sound, config) else {
         return synthesized(sound, config)
             .map(|source| (source, None))
-            .ok_or_else(|| format!("{}: не вибрано файл", sound.title()));
+            .ok_or_else(|| tr!("{}: не вибрано файл", "{}: no file selected", sound.title()));
     };
     match load_file(path, sound, config) {
         Ok(source) => Ok((source, None)),
         Err(e) => match synthesized(sound, config) {
             Some(source) => Ok((
                 source,
-                Some(format!("{}: {e}; звучить вбудований звук", path.display())),
+                Some(tr!(
+                    "{}: {e}; звучить вбудований звук",
+                    "{}: {e}; playing the built-in sound",
+                    path.display()
+                )),
             )),
             None => Err(format!("{}: {e}", path.display())),
         },

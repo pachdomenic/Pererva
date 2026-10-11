@@ -67,17 +67,17 @@ component AlertBanner inherits Rectangle {
             spacing: 4px;
 
             Text {
-                text: AppState.drill-active ? "НАВЧАЛЬНА ТРИВОГА"
-                    : yellow ? "ТРИВОГА ЖОВТОГО РІВНЯ"
-                    : AppState.alert-levels ? "ТРИВОГА ЧЕРВОНОГО РІВНЯ" : "ПОВІТРЯНА ТРИВОГА";
+                text: AppState.drill-active ? @tr("НАВЧАЛЬНА ТРИВОГА")
+                    : yellow ? @tr("ТРИВОГА ЖОВТОГО РІВНЯ")
+                    : AppState.alert-levels ? @tr("ТРИВОГА ЧЕРВОНОГО РІВНЯ") : @tr("ПОВІТРЯНА ТРИВОГА");
                 color: foreground;
                 font-size: Type.headline-medium;
                 font-weight: Type.heavy;
                 letter-spacing: 1px;
             }
             Text {
-                text: (AppState.drill-active ? "Тренування: пройдіть до укриття." : "Негайно пройдіть до укриття.")
-                    + (AppState.bells-muted ? " Шкільні дзвінки вимкнено до відбою." : "");
+                text: (AppState.drill-active ? @tr("Тренування: пройдіть до укриття.") : @tr("Негайно пройдіть до укриття."))
+                    + (AppState.bells-muted ? " " + @tr("Шкільні дзвінки вимкнено до відбою.") : "");
                 color: foreground;
                 font-size: Type.body-large;
                 wrap: word-wrap;
@@ -195,7 +195,7 @@ component AlertCard inherits Card {
                 IconButton {
                     icon: Icons.refresh;
                     tint: AlertColors.on-container;
-                    tooltip: "Оновити";
+                    tooltip: @tr("Оновити");
                     enabled: AppState.alert-level != AlertLevel.disabled;
                     clicked => { AppState.refresh-alert(); }
                 }
@@ -279,7 +279,7 @@ component NextBellCard inherits Card {
             spacing: 4px;
 
             Text {
-                text: "Наступний дзвінок";
+                text: @tr("Наступний дзвінок");
                 color: Theme.on-surface-variant;
                 font-size: Type.label-large;
                 font-weight: Type.medium;
@@ -305,7 +305,7 @@ component NextBellCard inherits Card {
                 alignment: start;
 
                 Pill {
-                    text: "Вимкнено через тривогу";
+                    text: @tr("Вимкнено через тривогу");
                     icon: Icons.siren;
                     background: Theme.error-container;
                     foreground: Theme.on-error-container;
@@ -326,7 +326,7 @@ component ActionsCard inherits Card {
 
         HorizontalLayout {
             Text {
-                text: "Швидкі дії";
+                text: @tr("Швидкі дії");
                 color: Theme.on-surface;
                 font-size: Type.title-large;
                 font-weight: Type.emphasized;
@@ -345,14 +345,14 @@ component ActionsCard inherits Card {
 
             Button {
                 horizontal-stretch: 1;
-                text: compact ? "Дзвінок" : "Подати дзвінок";
+                text: compact ? @tr("Дзвінок") : @tr("Подати дзвінок");
                 icon: Icons.bell;
                 size: compact ? 48px : 56px;
                 clicked => { AppState.ring-bell(); }
             }
             Button {
                 horizontal-stretch: 1;
-                text: compact ? "Стоп" : "Зупинити";
+                text: compact ? @tr("Стоп") : @tr("Зупинити");
                 icon: Icons.stop;
                 kind: ButtonKind.outlined;
                 size: compact ? 48px : 56px;
@@ -365,27 +365,27 @@ component ActionsCard inherits Card {
 
             Button {
                 horizontal-stretch: 1;
-                text: "Сирена";
+                text: @tr("Сирена");
                 icon: Icons.siren;
                 kind: ButtonKind.danger;
                 clicked => { AppState.test-siren(); }
             }
             Button {
                 horizontal-stretch: 1;
-                text: "Відбій";
+                text: @tr("Відбій");
                 icon: Icons.all-clear;
                 kind: ButtonKind.tonal;
                 clicked => { AppState.test-all-clear(); }
             }
         }
         Button {
-            text: "Хвилина мовчання";
+            text: @tr("Хвилина мовчання");
             icon: Icons.flag;
             kind: ButtonKind.tonal;
             clicked => { AppState.start-memorial(); }
         }
         Button {
-            text: AppState.drill-active ? "Завершити навчальну тривогу" : "Навчальна тривога";
+            text: AppState.drill-active ? @tr("Завершити навчальну тривогу") : @tr("Навчальна тривога");
             icon: AppState.drill-active ? Icons.all-clear : Icons.school;
             kind: AppState.drill-active ? ButtonKind.filled : ButtonKind.outlined;
             clicked => { AppState.toggle-drill(); }
@@ -403,14 +403,14 @@ component TodayCard inherits Card {
         alignment: start;
 
         Text {
-            text: "Уроки сьогодні";
+            text: @tr("Уроки сьогодні");
             color: Theme.on-surface;
             font-size: Type.title-large;
             font-weight: Type.emphasized;
         }
 
         if AppState.today.length == 0: Text {
-            text: "Сьогодні вихідний — дзвінків немає";
+            text: @tr("Сьогодні вихідний — дзвінків немає");
             color: Theme.on-surface-variant;
             font-size: Type.body-large;
         }
@@ -458,7 +458,7 @@ component TodayCard inherits Card {
                 }
                 if current: Pill {
                     y: (parent.height - self.height) / 2;
-                    text: "Зараз";
+                    text: @tr("Зараз");
                     background: Theme.primary;
                     foreground: Theme.on-primary;
                 }
@@ -494,7 +494,7 @@ component LogCard inherits Card {
                 colorize: Theme.on-surface-variant;
             }
             Text {
-                text: "Журнал";
+                text: @tr("Журнал");
                 color: Theme.on-surface;
                 font-size: Type.title-large;
                 font-weight: Type.emphasized;
@@ -502,7 +502,7 @@ component LogCard inherits Card {
         }
 
         if AppState.log.length == 0: Text {
-            text: "Подій ще немає";
+            text: @tr("Подій ще немає");
             color: Theme.on-surface-variant;
             font-size: Type.body-large;
         }

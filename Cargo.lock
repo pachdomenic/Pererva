@@ -4194,6 +4194,7 @@ dependencies = [
  "serde_json",
  "slint",
  "slint-build",
+ "sys-locale",
  "tempfile",
  "toml",
  "ureq",

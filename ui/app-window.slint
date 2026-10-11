@@ -34,26 +34,26 @@ export component AppWindow inherits Window {
     changed width => { narrow = self.width < 760px; }
     private property <[NavItem]> nav-items: [
         {
-            label: "Головна",
+            label: @tr("Головна"),
             icon: Icons.home,
             icon-active: Icons.home-fill,
             badge: AppState.alert-level == AlertLevel.active,
         },
         {
-            label: "Розклад",
+            label: @tr("Розклад"),
             icon: Icons.calendar,
             icon-active: Icons.calendar-fill,
             badge: AppState.schedule-dirty,
         },
         {
-            label: "Налаштування",
+            label: @tr("Налаштування"),
             icon: Icons.settings,
             icon-active: Icons.settings-fill,
             badge: AppState.settings-dirty,
         },
     ];
 
-    title: AppState.alert-level == AlertLevel.active ? AppState.alert-title + " — Шкільні дзвінки" : "Шкільні дзвінки";
+    title: AppState.alert-level == AlertLevel.active ? AppState.alert-title + " — " + @tr("Шкільні дзвінки") : @tr("Шкільні дзвінки");
     icon: @image-url("../packaging/shkilni-dzvinky.svg");
     min-width: 400px;
     min-height: 560px;

@@ -55,6 +55,8 @@ export struct SettingsData {
     silence-file: string,
     anthem-file: string,
     theme: int,
+    // 0 — як у системі, 1 — українська, 2 — англійська.
+    language: int,
 }
 
 export global AppState {
@@ -62,7 +64,7 @@ export global AppState {
     in property <string> clock: "--:--";
     in property <string> seconds: "--";
     in property <string> date;
-    in property <string> day-title: "Завантаження";
+    in property <string> day-title: @tr("Завантаження");
     in property <string> day-subtitle;
     in property <float> day-progress;
     in property <bool> school-day: true;
@@ -80,7 +82,7 @@ export global AppState {
     in property <bool> alert-yellow;
     // Джерело розрізняє рівні тривоги (червоний / жовтий).
     in property <bool> alert-levels;
-    in property <string> alert-title: "Немає даних";
+    in property <string> alert-title: @tr("Немає даних");
     in property <string> alert-region;
     in property <string> alert-detail;
     in property <string> alert-since;
@@ -106,7 +108,7 @@ export global AppState {
     // Налаштування.
     in-out property <SettingsData> settings;
     in property <[string]> regions;
-    in property <[string]> districts: ["Уся область"];
+    in property <[string]> districts: [@tr("Уся область")];
     in property <[string]> providers: ["alerts.in.ua", "Ubilling"];
     in property <string> config-path;
     in property <bool> settings-dirty;
@@ -136,6 +138,7 @@ export global AppState {
     callback save-settings();
     callback preview-sound(int);
     callback theme-changed(int);
+    callback language-changed(int);
 
     callback dismiss-toast();
 }

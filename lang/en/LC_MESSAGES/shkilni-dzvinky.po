@@ -1,0 +1,364 @@
+# Англійський переклад інтерфейсу «Шкільних дзвінків».
+# Вихідні тексти (msgid) — з розмітки ui/*.slint, українською.
+msgid ""
+msgstr ""
+"Project-Id-Version: shkilni-dzvinky\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Головна"
+msgstr "Home"
+
+msgid "Розклад"
+msgstr "Schedule"
+
+msgid "Налаштування"
+msgstr "Settings"
+
+msgid "Шкільні дзвінки"
+msgstr "School Bells"
+
+msgid "Зменшити"
+msgstr "Decrease"
+
+msgid "Збільшити"
+msgstr "Increase"
+
+msgid "НАВЧАЛЬНА ТРИВОГА"
+msgstr "ALERT DRILL"
+
+msgid "ТРИВОГА ЖОВТОГО РІВНЯ"
+msgstr "YELLOW-LEVEL ALERT"
+
+msgid "ТРИВОГА ЧЕРВОНОГО РІВНЯ"
+msgstr "RED-LEVEL ALERT"
+
+msgid "ПОВІТРЯНА ТРИВОГА"
+msgstr "AIR RAID ALERT"
+
+msgid "Тренування: пройдіть до укриття."
+msgstr "Drill: proceed to the shelter."
+
+msgid "Негайно пройдіть до укриття."
+msgstr "Proceed to the shelter immediately."
+
+msgid "Шкільні дзвінки вимкнено до відбою."
+msgstr "School bells are muted until the all clear."
+
+msgid "Оновити"
+msgstr "Refresh"
+
+msgid "Наступний дзвінок"
+msgstr "Next bell"
+
+msgid "Вимкнено через тривогу"
+msgstr "Muted due to alert"
+
+msgid "Швидкі дії"
+msgstr "Quick actions"
+
+msgid "Дзвінок"
+msgstr "Bell"
+
+msgid "Подати дзвінок"
+msgstr "Ring the bell"
+
+msgid "Стоп"
+msgstr "Stop"
+
+msgid "Зупинити"
+msgstr "Stop sound"
+
+msgid "Сирена"
+msgstr "Siren"
+
+msgid "Відбій"
+msgstr "All clear"
+
+msgid "Хвилина мовчання"
+msgstr "Minute of silence"
+
+msgid "Завершити навчальну тривогу"
+msgstr "End alert drill"
+
+msgid "Навчальна тривога"
+msgstr "Alert drill"
+
+msgid "Уроки сьогодні"
+msgstr "Today's lessons"
+
+msgid "Сьогодні вихідний — дзвінків немає"
+msgstr "Day off today — no bells"
+
+msgid "Зараз"
+msgstr "Now"
+
+msgid "Журнал"
+msgstr "Log"
+
+msgid "Подій ще немає"
+msgstr "No events yet"
+
+msgid "Початок"
+msgstr "Start"
+
+msgid "Кінець"
+msgstr "End"
+
+msgid "Видалити урок"
+msgstr "Delete lesson"
+
+msgid "Пн"
+msgstr "Mon"
+
+msgid "Вт"
+msgstr "Tue"
+
+msgid "Ср"
+msgstr "Wed"
+
+msgid "Чт"
+msgstr "Thu"
+
+msgid "Пт"
+msgstr "Fri"
+
+msgid "Сб"
+msgstr "Sat"
+
+msgid "Нд"
+msgstr "Sun"
+
+msgid "Розклад дзвінків"
+msgstr "Bell schedule"
+
+msgid "Навчальні дні"
+msgstr "School days"
+
+msgid "У ці дні дзвінки подаються за розкладом"
+msgstr "Bells ring on schedule on these days"
+
+msgid "Попереджувальний дзвінок"
+msgstr "Warning bell"
+
+msgid "За скільки хвилин до уроку подати короткий дзвінок (0 — вимкнено)"
+msgstr "How many minutes before a lesson to ring a short bell (0 — off)"
+
+msgid "хв"
+msgstr "min"
+
+msgid "Уроки"
+msgstr "Lessons"
+
+msgid "Час у форматі ГГ:ХХ. Дзвінок подається на початку і в кінці кожного уроку"
+msgstr "Time as HH:MM. The bell rings at the start and end of every lesson"
+
+msgid "Уроків немає — додайте перший"
+msgstr "No lessons — add the first one"
+
+msgid "Додати урок"
+msgstr "Add lesson"
+
+msgid "Є незбережені зміни"
+msgstr "You have unsaved changes"
+
+msgid "Скасувати"
+msgstr "Cancel"
+
+msgid "Зберегти"
+msgstr "Save"
+
+msgid "Вбудований звук"
+msgstr "Built-in sound"
+
+msgid "Прослухати"
+msgstr "Preview"
+
+msgid "Повітряна тривога"
+msgstr "Air raid alert"
+
+msgid "Джерело даних і поведінка під час тривоги"
+msgstr "Data source and behaviour during an alert"
+
+msgid "Стежити за тривогою"
+msgstr "Monitor alerts"
+
+msgid "Періодично опитувати API і подавати сирену"
+msgstr "Poll the API periodically and sound the siren"
+
+msgid "Джерело даних"
+msgstr "Data source"
+
+msgid "Ubilling (без токена)"
+msgstr "Ubilling (no token)"
+
+msgid "Токен API alerts.in.ua"
+msgstr "alerts.in.ua API token"
+
+msgid "Вставте токен"
+msgstr "Paste the token"
+
+msgid "Отримати токен можна на devs.alerts.in.ua"
+msgstr "Get a token at devs.alerts.in.ua"
+
+msgid "Область"
+msgstr "Region"
+
+msgid "Район"
+msgstr "District"
+
+msgid "Інтервал опитування"
+msgstr "Polling interval"
+
+msgid "Як часто перевіряти стан тривоги"
+msgstr "How often to check the alert status"
+
+msgid "с"
+msgstr "s"
+
+msgid "Вимикати дзвінки під час тривоги"
+msgstr "Mute bells during an alert"
+
+msgid "Шкільні дзвінки не подаються до відбою"
+msgstr "School bells don't ring until the all clear"
+
+msgid "Часткова тривога — це тривога"
+msgstr "Treat a partial alert as an alert"
+
+msgid "Реагувати, якщо тривогу оголошено лише в частині громад області чи району"
+msgstr "React when an alert covers only some communities of the region or district"
+
+msgid "Тривога жовтого рівня"
+msgstr "Yellow-level alert"
+
+msgid "Лише показується на головній: без сирени, дзвінки подаються"
+msgstr "Only shown on the home page: no siren, bells keep ringing"
+
+msgid "Як тривога червоного рівня: та сама сирена і той самий відбій"
+msgstr "Like a red-level alert: the same siren and the same all clear"
+
+msgid "Як тривога червоного рівня, але з власними сигналами початку і відбою"
+msgstr "Like a red-level alert, but with its own start and all-clear signals"
+
+msgid "Не реагувати"
+msgstr "Ignore"
+
+msgid "Як червоного рівня"
+msgstr "Same as red"
+
+msgid "Окремі звуки"
+msgstr "Separate sounds"
+
+msgid "Сигнал тривоги жовтого рівня"
+msgstr "Yellow-level alert signal"
+
+msgid "Вбудований сигнал «ті-ту»"
+msgstr "Built-in two-tone signal"
+
+msgid "Відбій тривоги жовтого рівня"
+msgstr "Yellow-level all clear"
+
+msgid "Вбудований передзвін відбою"
+msgstr "Built-in all-clear chime"
+
+msgid "Сигнал відбою"
+msgstr "All-clear signal"
+
+msgid "Подавати передзвін після завершення тривоги"
+msgstr "Play a chime when the alert ends"
+
+msgid "Щоденне вшанування загиблих, після нього — державний гімн"
+msgstr "Daily commemoration of the fallen, followed by the national anthem"
+
+msgid "Подавати хвилину мовчання"
+msgstr "Hold a minute of silence"
+
+msgid "Метроном протягом хвилини або власна доріжка"
+msgstr "A one-minute metronome or your own track"
+
+msgid "Час"
+msgstr "Time"
+
+msgid "Загальнонаціональна хвилина мовчання — о 09:00"
+msgstr "The nationwide minute of silence is at 09:00"
+
+msgid "ГГ:ХХ"
+msgstr "HH:MM"
+
+msgid "Лише в навчальні дні"
+msgstr "School days only"
+
+msgid "Інакше — щодня, включно з вихідними"
+msgstr "Otherwise every day, weekends included"
+
+msgid "Гімн після хвилини мовчання"
+msgstr "Anthem after the minute of silence"
+
+msgid "Вкажіть файл гімну нижче, інакше гімн не прозвучить"
+msgstr "Choose the anthem file below, otherwise the anthem won't play"
+
+msgid "Звучить одразу після хвилини мовчання"
+msgstr "Plays right after the minute of silence"
+
+msgid "Доріжка хвилини мовчання"
+msgstr "Minute of silence track"
+
+msgid "Доріжка гімну"
+msgstr "Anthem track"
+
+msgid "Файл не вибрано"
+msgstr "No file selected"
+
+msgid "Звук"
+msgstr "Sound"
+
+msgid "Гучність, тривалість і власні аудіофайли (WAV, MP3, FLAC, OGG)"
+msgstr "Volume, duration and custom audio files (WAV, MP3, FLAC, OGG)"
+
+msgid "Тривалість шкільного дзвінка"
+msgstr "School bell duration"
+
+msgid "Тривалість сирени"
+msgstr "Siren duration"
+
+msgid "Файл шкільного дзвінка"
+msgstr "School bell file"
+
+msgid "Файл сирени"
+msgstr "Siren file"
+
+msgid "Файл сигналу відбою"
+msgstr "All-clear file"
+
+msgid "Оформлення"
+msgstr "Appearance"
+
+msgid "Тема і мова застосовуються одразу"
+msgstr "Theme and language apply immediately"
+
+msgid "Як у системі"
+msgstr "System"
+
+msgid "Світла"
+msgstr "Light"
+
+msgid "Темна"
+msgstr "Dark"
+
+msgid "Мова інтерфейсу"
+msgstr "Interface language"
+
+msgid "Файл налаштувань: {}"
+msgstr "Settings file: {}"
+
+msgid "Завантаження"
+msgstr "Loading"
+
+msgid "Немає даних"
+msgstr "No data"
+
+msgid "Уся область"
+msgstr "Entire region"
