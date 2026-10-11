@@ -2,3 +2,4 @@
 
 pub mod draft;
 pub mod format;
+pub mod settings;
