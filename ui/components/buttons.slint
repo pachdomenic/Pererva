@@ -1,0 +1,314 @@
+// Кнопки Material 3 Expressive.
+//
+// Expressive-кнопки змінюють форму при натисканні: пігулка стискається до
+// заокругленого квадрата з пружинною анімацією.
+
+import { Theme, Shape, Type, Motion } from "../theme.slint";
+
+export enum ButtonKind { filled, tonal, outlined, text, elevated, danger }
+
+// Шар стану: напівпрозора підкладка кольору вмісту при наведенні/натисканні.
+export component StateLayer inherits Rectangle {
+    in property <bool> hovered;
+    in property <bool> pressed;
+    in property <color> tint;
+    background: tint;
+    opacity: pressed ? Theme.state-pressed : hovered ? Theme.state-hover : 0;
+    animate opacity { duration: Motion.effects-fast; easing: Motion.effects; }
+}
+
+export component Button {
+    in property <string> text;
+    in property <image> icon;
+    in property <ButtonKind> kind: filled;
+    in property <bool> enabled: true;
+    // Висота: 32 (XS), 40 (S), 56 (M), 96 (L).
+    in property <length> size: 40px;
+    // Квадратна форма замість пігулки.
+    in property <bool> square: false;
+    callback clicked;
+
+    private property <bool> has-icon: icon.width > 0;
+    private property <length> icon-size: size >= 56px ? 24px : 20px;
+    private property <length> pad: size >= 56px ? 24px : 16px;
+    private property <length> rest-radius: square ? (size >= 56px ? Shape.large : Shape.medium) : size / 2;
+    private property <length> pressed-radius: size >= 56px ? Shape.large : Shape.small;
+
+    private property <color> container: {
+        if (!enabled) {
+            return kind == ButtonKind.text || kind == ButtonKind.outlined ? transparent : Theme.on-surface.with-alpha(Theme.disabled-container);
+        }
+        if (kind == ButtonKind.filled) { return Theme.primary; }
+        if (kind == ButtonKind.tonal) { return Theme.secondary-container; }
+        if (kind == ButtonKind.elevated) { return Theme.surface-container-low; }
+        if (kind == ButtonKind.danger) { return Theme.error; }
+        transparent
+    }
+    private property <color> content: {
+        if (!enabled) { return Theme.on-surface.with-alpha(Theme.disabled-content); }
+        if (kind == ButtonKind.filled) { return Theme.on-primary; }
+        if (kind == ButtonKind.tonal) { return Theme.on-secondary-container; }
+        if (kind == ButtonKind.outlined) { return Theme.on-surface-variant; }
+        if (kind == ButtonKind.danger) { return Theme.on-error; }
+        Theme.primary
+    }
+
+    min-height: size;
+    max-height: size;
+    min-width: max(size, layout.min-width);
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { if (enabled) { clicked(); } }
+
+    bg := Rectangle {
+        background: container;
+        border-radius: touch.pressed ? pressed-radius : rest-radius;
+        border-width: kind == ButtonKind.outlined ? 1px : 0;
+        border-color: enabled ? Theme.outline-variant : Theme.on-surface.with-alpha(Theme.disabled-container);
+        drop-shadow-color: kind == ButtonKind.elevated && enabled ? Theme.shadow.with-alpha(0.25) : transparent;
+        drop-shadow-blur: touch.has-hover ? 6px : 3px;
+        drop-shadow-offset-y: 1px;
+        clip: true;
+        animate border-radius { duration: Motion.fast; easing: Motion.spatial-fast; }
+        animate background { duration: Motion.effects-default; }
+
+        StateLayer {
+            tint: content;
+            hovered: touch.has-hover && enabled;
+            pressed: touch.pressed && enabled;
+        }
+    }
+
+    layout := HorizontalLayout {
+        padding-left: has-icon ? pad - 4px : pad;
+        padding-right: pad;
+        spacing: 8px;
+        alignment: center;
+
+        if has-icon: Image {
+            source: icon;
+            width: icon-size;
+            height: icon-size;
+            y: (parent.height - self.height) / 2;
+            colorize: content;
+        }
+        Text {
+            text: text;
+            color: content;
+            font-size: size >= 56px ? Type.title-medium : Type.label-large;
+            font-weight: Type.medium;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: enabled;
+        mouse-cursor: enabled ? pointer : default;
+        clicked => { clicked(); }
+    }
+}
+
+export enum IconButtonKind { standard, filled, tonal, outlined }
+
+export component IconButton {
+    in property <image> icon;
+    in property <IconButtonKind> kind: standard;
+    in property <bool> enabled: true;
+    in property <length> size: 40px;
+    in property <string> tooltip;
+    in property <color> tint: Theme.on-surface-variant;
+    callback clicked;
+
+    private property <color> container: {
+        if (!enabled) { return kind == IconButtonKind.standard || kind == IconButtonKind.outlined ? transparent : Theme.on-surface.with-alpha(Theme.disabled-container); }
+        if (kind == IconButtonKind.filled) { return Theme.primary; }
+        if (kind == IconButtonKind.tonal) { return Theme.secondary-container; }
+        transparent
+    }
+    private property <color> content: {
+        if (!enabled) { return Theme.on-surface.with-alpha(Theme.disabled-content); }
+        if (kind == IconButtonKind.filled) { return Theme.on-primary; }
+        if (kind == IconButtonKind.tonal) { return Theme.on-secondary-container; }
+        tint
+    }
+
+    width: size;
+    height: size;
+    accessible-role: button;
+    accessible-label: tooltip;
+    accessible-action-default => { if (enabled) { clicked(); } }
+
+    Rectangle {
+        background: container;
+        border-radius: touch.pressed ? Shape.small : self.height / 2;
+        border-width: kind == IconButtonKind.outlined ? 1px : 0;
+        border-color: Theme.outline-variant;
+        clip: true;
+        animate border-radius { duration: Motion.fast; easing: Motion.spatial-fast; }
+
+        StateLayer {
+            tint: content;
+            hovered: touch.has-hover && enabled;
+            pressed: touch.pressed && enabled;
+        }
+        Image {
+            source: icon;
+            width: size * 0.55;
+            height: size * 0.55;
+            colorize: content;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: enabled;
+        mouse-cursor: enabled ? pointer : default;
+        clicked => { clicked(); }
+    }
+}
+
+// Розширена плаваюча кнопка дії (Extended FAB).
+export component Fab {
+    in property <image> icon;
+    in property <string> text;
+    in property <bool> tertiary: false;
+    // Висота 56 (звичайна), 80 (середня), 96 (велика).
+    in property <length> size: 56px;
+    callback clicked;
+
+    private property <color> container: tertiary ? Theme.tertiary-container : Theme.primary-container;
+    private property <color> content: tertiary ? Theme.on-tertiary-container : Theme.on-primary-container;
+    private property <length> icon-size: size >= 80px ? 28px : 24px;
+
+    height: size;
+    min-width: max(size, layout.min-width);
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { clicked(); }
+
+    Rectangle {
+        background: container;
+        border-radius: touch.pressed ? Shape.large : (size >= 80px ? Shape.extra-large : Shape.large + 4px);
+        drop-shadow-color: Theme.shadow.with-alpha(touch.has-hover ? 0.3 : 0.2);
+        drop-shadow-blur: touch.has-hover ? 10px : 6px;
+        drop-shadow-offset-y: touch.has-hover ? 4px : 2px;
+        clip: true;
+        animate border-radius, drop-shadow-blur, drop-shadow-offset-y { duration: Motion.fast; easing: Motion.spatial-fast; }
+
+        StateLayer {
+            tint: content;
+            hovered: touch.has-hover;
+            pressed: touch.pressed;
+        }
+    }
+
+    layout := HorizontalLayout {
+        padding-left: text == "" ? 0 : 16px;
+        padding-right: text == "" ? 0 : 20px;
+        spacing: 12px;
+        alignment: center;
+
+        Image {
+            source: icon;
+            width: icon-size;
+            height: icon-size;
+            y: (parent.height - self.height) / 2;
+            colorize: content;
+        }
+        if text != "": Text {
+            text: text;
+            color: content;
+            font-size: size >= 80px ? Type.title-large : Type.title-medium;
+            font-weight: Type.emphasized;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { clicked(); }
+    }
+}
+
+export struct SegmentItem {
+    label: string,
+    icon: image,
+}
+
+// З'єднана група кнопок (connected button group) — вибір одного варіанта.
+// Обрана кнопка стає повністю круглою, сусідні мають малі внутрішні кути.
+export component ButtonGroup {
+    in property <[SegmentItem]> items;
+    in-out property <int> selected: 0;
+    in property <length> size: 40px;
+    callback selected-changed(int);
+
+    min-height: size;
+    max-height: size;
+
+    HorizontalLayout {
+        spacing: 2px;
+
+        for item[i] in items: Rectangle {
+            private property <bool> active: i == selected;
+            private property <bool> first: i == 0;
+            private property <bool> last: i == items.length - 1;
+            private property <length> outer: size / 2;
+            private property <length> inner: seg-touch.pressed ? Shape.extra-small : Shape.small;
+            private property <color> content: active ? Theme.on-secondary-container : Theme.on-surface-variant;
+
+            horizontal-stretch: 1;
+            min-width: seg-layout.min-width;
+            background: active ? Theme.secondary-container : Theme.surface-container-highest;
+            border-top-left-radius: active || first ? outer : inner;
+            border-bottom-left-radius: active || first ? outer : inner;
+            border-top-right-radius: active || last ? outer : inner;
+            border-bottom-right-radius: active || last ? outer : inner;
+            clip: true;
+            accessible-role: button;
+            accessible-label: item.label;
+            accessible-checked: active;
+            animate border-top-left-radius, border-bottom-left-radius, border-top-right-radius, border-bottom-right-radius {
+                duration: Motion.default; easing: Motion.spatial-fast;
+            }
+            animate background { duration: Motion.effects-default; }
+
+            StateLayer {
+                tint: content;
+                hovered: seg-touch.has-hover;
+                pressed: seg-touch.pressed;
+            }
+
+            seg-layout := HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                spacing: 6px;
+                alignment: center;
+
+                if active || item.icon.width > 0: Image {
+                    source: active ? @image-url("../icons/check.svg") : item.icon;
+                    width: 18px;
+                    height: 18px;
+                    y: (parent.height - self.height) / 2;
+                    colorize: content;
+                }
+                Text {
+                    text: item.label;
+                    color: content;
+                    font-size: Type.label-large;
+                    font-weight: active ? Type.emphasized : Type.medium;
+                    vertical-alignment: center;
+                }
+            }
+
+            seg-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    if (selected != i) {
+                        selected = i;
+                        selected-changed(i);
+                    }
+                }
+            }
+        }
+    }
+}
