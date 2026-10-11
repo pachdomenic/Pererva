@@ -1,10 +1,13 @@
 // Токени дизайн-системи Material 3 Expressive: кольори, форми, типографіка, рух.
 
 import "fonts/RobotoFlex.ttf";
+import { Palette } from "std-widgets.slint";
 
 // Колірна схема, згенерована з базового кольору #3D5AFE (індиго).
 export global Theme {
-    in-out property <bool> dark: false;
+    // Режим теми: 0 — як у системі, 1 — світла, 2 — темна.
+    in-out property <int> mode: 0;
+    out property <bool> dark: mode == 2 || (mode == 0 && Palette.color-scheme == ColorScheme.dark);
 
     // Primary
     out property <color> primary: dark ? #b9c3ff : #4355b9;
