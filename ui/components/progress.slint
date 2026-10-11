@@ -166,7 +166,7 @@ export component ExpressiveShape {
             x: (scaler.width - self.width) / 2;
             y: (scaler.height - self.height) / 2;
             opacity: current ? 1 : 0;
-            rotation-angle: spin + (current ? 0deg : -60deg);
+            transform-rotation: spin + (current ? 0deg : -60deg);
             animate width, x, y { duration: Motion.slow; easing: Motion.spatial-slow; }
             animate opacity { duration: Motion.default; easing: Motion.effects; }
         }
