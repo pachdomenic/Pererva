@@ -9,6 +9,8 @@ repository = "https://github.com/pachdomenic/Pererva"
 readme = "README.md"
 
 [dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+serde = { version = "1.0.229", features = ["derive"] }
 
 [profile.release]
 lto = "thin"
