@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main, master, "claude/**"]
+    # Тег vX.Y.Z — збірка і публікація релізу на GitHub.
+    tags: ["v*"]
   pull_request:
 
 env:
@@ -27,12 +29,21 @@ jobs:
       - run: cargo test
 
   build:
-    name: Збірка (${{ matrix.os }})
+    name: Збірка (${{ matrix.target }})
     needs: check
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          # Intel-Mac збирається крос-компіляцією на ARM-раннері.
+          - os: macos-latest
+            target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +53,71 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libxkbcommon-dev libfontconfig1-dev
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Пакування
+        id: package
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="$(git rev-parse --short HEAD)"
+          fi
+          name="shkilni-dzvinky-$version-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          bin="target/${{ matrix.target }}/release/shkilni-dzvinky"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            bin="$bin.exe"
+          fi
+          cp "$bin" README.md LICENSE config.example.toml "dist/$name/"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            cp packaging/shkilni-dzvinky.desktop packaging/shkilni-dzvinky.svg "dist/$name/"
+          fi
+          cd dist
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            archive="$name.zip"
+            7z a -tzip "$archive" "$name" > /dev/null
+          else
+            archive="$name.tar.gz"
+            tar -czf "$archive" "$name"
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "archive=dist/$archive" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: shkilni-dzvinky-${{ runner.os }}
-          path: |
-            target/release/shkilni-dzvinky
-            target/release/shkilni-dzvinky.exe
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.archive }}
           if-no-files-found: error
+
+  release:
+    name: Реліз
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Тег відповідає версії в Cargo.toml
+        run: |
+          version="$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)"
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Тег $GITHUB_REF_NAME не збігається з версією v$version у Cargo.toml"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Контрольні суми
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

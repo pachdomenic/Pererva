@@ -71,8 +71,28 @@
 
 ### Готові збірки
 
-Кожен коміт збирається в GitHub Actions для Linux, Windows і macOS —
-готові файли можна завантажити з артефактів відповідного запуску CI.
+Стабільні версії публікуються на сторінці
+[Releases](https://github.com/pachdomenic/Pererva/releases):
+
+| Система | Файл |
+| --- | --- |
+| Linux (x86_64) | `shkilni-dzvinky-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz` |
+| Windows (x86_64) | `shkilni-dzvinky-vX.Y.Z-x86_64-pc-windows-msvc.zip` |
+| macOS (Apple Silicon) | `shkilni-dzvinky-vX.Y.Z-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `shkilni-dzvinky-vX.Y.Z-x86_64-apple-darwin.tar.gz` |
+
+В архіві — програма, README, ліцензія і приклад налаштувань (для Linux ще
+`.desktop`-файл та іконка). Контрольні суми — у `SHA256SUMS.txt`.
+
+Збірки з кожного коміту доступні в артефактах відповідного запуску CI.
+
+Щоб випустити нову версію, змініть `version` у `Cargo.toml` і надішліть тег
+з тим самим номером — CI збере всі платформи і створить реліз:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
 
 ### Збірка з вихідного коду
 
