@@ -23,14 +23,16 @@ pub enum Sound {
     AllClear,
     Silence,
     Anthem,
+    YellowSiren,
+    YellowAllClear,
 }
 
 impl Sound {
     fn priority(self) -> u8 {
         match self {
             Sound::Bell => 0,
-            Sound::AllClear | Sound::Silence | Sound::Anthem => 1,
-            Sound::Siren => 2,
+            Sound::AllClear | Sound::YellowAllClear | Sound::Silence | Sound::Anthem => 1,
+            Sound::Siren | Sound::YellowSiren => 2,
         }
     }
 
@@ -41,6 +43,8 @@ impl Sound {
             Sound::AllClear => "Відбій тривоги",
             Sound::Silence => "Хвилина мовчання",
             Sound::Anthem => "Гімн України",
+            Sound::YellowSiren => "Сигнал тривоги жовтого рівня",
+            Sound::YellowAllClear => "Відбій тривоги жовтого рівня",
         }
     }
 
@@ -52,7 +56,7 @@ impl Sound {
 
 enum Command {
     /// Звуки, що звучать один за одним.
-    Play(Vec<Sound>, SoundConfig),
+    Play(Vec<Sound>, Box<SoundConfig>),
     Stop,
 }
 
@@ -113,7 +117,9 @@ impl Player {
 
     /// Подає звуки один за одним без пауз (хвилина мовчання, далі гімн).
     pub fn play_sequence(&self, sounds: Vec<Sound>, config: &SoundConfig) {
-        let _ = self.tx.send(Command::Play(sounds, config.clone()));
+        let _ = self
+            .tx
+            .send(Command::Play(sounds, Box::new(config.clone())));
     }
 
     pub fn stop(&self) {
@@ -138,7 +144,9 @@ impl Engine {
         self.playing.retain(|(_, sink)| !sink.empty());
         match first {
             // Сирена і відбій перекривають усе, що звучить.
-            Sound::Siren | Sound::AllClear => self.stop_all(),
+            Sound::Siren | Sound::AllClear | Sound::YellowSiren | Sound::YellowAllClear => {
+                self.stop_all()
+            }
             Sound::Bell => self.stop(Sound::Bell),
             // Церемонія глушить дзвінки, але не сирену і не відбій.
             Sound::Silence | Sound::Anthem => {
@@ -247,6 +255,8 @@ fn custom_file(sound: Sound, config: &SoundConfig) -> Option<&Path> {
         Sound::AllClear => config.all_clear_file.as_deref(),
         Sound::Silence => config.silence_file.as_deref(),
         Sound::Anthem => config.anthem_file.as_deref(),
+        Sound::YellowSiren => config.yellow_siren_file.as_deref(),
+        Sound::YellowAllClear => config.yellow_all_clear_file.as_deref(),
     }
 }
 
@@ -257,6 +267,9 @@ fn synthesized(sound: Sound, config: &SoundConfig) -> Option<BoxedSource> {
         Sound::Siren => Box::new(Synth::siren(config.siren_seconds)),
         Sound::AllClear => Box::new(Synth::all_clear()),
         Sound::Silence => Box::new(Synth::silence()),
+        Sound::YellowSiren => Box::new(Synth::warning(config.siren_seconds)),
+        // Відбій тривоги жовтого рівня без власного файлу — той самий передзвін.
+        Sound::YellowAllClear => Box::new(Synth::all_clear()),
         Sound::Anthem => return None,
     })
 }
@@ -268,8 +281,10 @@ fn load_file(path: &Path, sound: Sound, config: &SoundConfig) -> Result<BoxedSou
     let decoder = Decoder::try_from(file).map_err(|e| e.to_string())?;
     let seconds = match sound {
         Sound::Bell => config.bell_seconds,
-        Sound::Siren => config.siren_seconds,
-        Sound::AllClear | Sound::Silence | Sound::Anthem => return Ok(Box::new(decoder)),
+        Sound::Siren | Sound::YellowSiren => config.siren_seconds,
+        Sound::AllClear | Sound::YellowAllClear | Sound::Silence | Sound::Anthem => {
+            return Ok(Box::new(decoder));
+        }
     };
     Ok(Box::new(
         decoder

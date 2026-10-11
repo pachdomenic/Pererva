@@ -43,6 +43,11 @@ poll_seconds = 20
 mute_bells_during_alert = true
 # Вважати тривогою оголошення лише в частині громад області (району).
 partial_is_alert = false
+# Тривога жовтого рівня (лише alerts.in.ua): "ignore" — лише показувати,
+# "same-as-red" — як тривога червоного рівня, з тими самими звуками,
+# "separate" — як тривога червоного рівня, але з окремими звуками
+# (yellow_siren_file і yellow_all_clear_file у [sound]).
+yellow = "same-as-red"
 # Подавати сигнал відбою після завершення тривоги.
 play_all_clear = true
 
@@ -66,6 +71,10 @@ siren_seconds = 30
 # bell_file = "/home/school/sounds/bell.mp3"
 # siren_file = "/home/school/sounds/siren.wav"
 # all_clear_file = "/home/school/sounds/all-clear.ogg"
+# Звуки тривоги жовтого рівня для yellow = "separate". Без файлів — вбудований
+# двотонний сигнал і той самий передзвін відбою, що й для червоного рівня.
+# yellow_siren_file = "/home/school/sounds/yellow-alert.wav"
+# yellow_all_clear_file = "/home/school/sounds/yellow-all-clear.wav"
 # Окремі доріжки для хвилини мовчання і гімну. Без файлу хвилини мовчання
 # звучить вбудований метроном (60 с); без файлу гімну гімн не подається.
 # silence_file = "/home/school/sounds/minute-of-silence.mp3"

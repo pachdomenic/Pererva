@@ -1,6 +1,6 @@
 //! Фонове опитування джерела тривоги.
 
-use super::{AlertSource, AlertStatus, Location, source_for};
+use super::{AlertSource, AlertStatus, Location, Reading, source_for};
 use crate::config::AlertConfig;
 use chrono::{DateTime, Local};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
@@ -11,7 +11,7 @@ use std::time::Duration;
 #[derive(Debug, Clone, PartialEq)]
 pub struct AlertUpdate {
     pub enabled: bool,
-    pub status: AlertStatus,
+    pub reading: Reading,
     /// Назва області або «район, область».
     pub region: String,
     pub error: Option<String>,
@@ -79,7 +79,7 @@ fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
     let location = Location::from_config(config);
     let mut update = AlertUpdate {
         enabled: config.enabled,
-        status: AlertStatus::Unknown,
+        reading: AlertStatus::Unknown.into(),
         region: location.map_or_else(|| "Невідома область".to_owned(), |l| l.title()),
         error: None,
         checked_at: Local::now(),
@@ -92,7 +92,7 @@ fn poll(config: &AlertConfig, source: &dyn AlertSource) -> AlertUpdate {
         return update;
     };
     match source.fetch(&location) {
-        Ok(status) => update.status = status,
+        Ok(reading) => update.reading = reading,
         Err(err) => update.error = Some(err.to_string()),
     }
     update
@@ -107,15 +107,15 @@ mod tests {
     struct Fixed(AlertStatus);
 
     impl AlertSource for Fixed {
-        fn fetch(&self, _: &Location) -> Result<AlertStatus, FetchError> {
-            Ok(self.0)
+        fn fetch(&self, _: &Location) -> Result<Reading, FetchError> {
+            Ok(self.0.into())
         }
     }
 
     struct Failing;
 
     impl AlertSource for Failing {
-        fn fetch(&self, _: &Location) -> Result<AlertStatus, FetchError> {
+        fn fetch(&self, _: &Location) -> Result<Reading, FetchError> {
             Err(FetchError::RateLimited)
         }
     }
@@ -150,7 +150,7 @@ mod tests {
     fn reports_status_immediately() {
         let (_monitor, rx) = spawn(config());
         let update = next(&rx);
-        assert_eq!(update.status, AlertStatus::Active);
+        assert_eq!(update.reading.status, AlertStatus::Active);
         assert_eq!(update.region, "м. Київ");
         assert!(update.error.is_none());
     }
@@ -165,7 +165,7 @@ mod tests {
             ..config()
         });
         let update = next(&rx);
-        assert_eq!(update.status, AlertStatus::Unknown);
+        assert_eq!(update.reading.status, AlertStatus::Unknown);
         assert!(update.error.unwrap().contains("ліміт"));
 
         monitor.configure(AlertConfig {
@@ -174,11 +174,11 @@ mod tests {
         });
         let update = next(&rx);
         assert!(!update.enabled);
-        assert_eq!(update.status, AlertStatus::Unknown);
+        assert_eq!(update.reading.status, AlertStatus::Unknown);
 
         monitor.configure(config());
         next(&rx);
         monitor.refresh();
-        assert_eq!(next(&rx).status, AlertStatus::Active);
+        assert_eq!(next(&rx).reading.status, AlertStatus::Active);
     }
 }

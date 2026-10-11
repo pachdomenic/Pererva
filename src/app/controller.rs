@@ -7,9 +7,9 @@ use super::settings::{apply_form, district_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
 use crate::alert::regions::REGIONS;
 use crate::alert::tracker::{AlertTracker, Transition};
-use crate::alert::{AlertStatus, Location};
+use crate::alert::{AlertStatus, Location, ThreatLevel};
 use crate::audio::{Player, Sound};
-use crate::config::{Config, ThemeMode};
+use crate::config::{AlertProvider, Config, ThemeMode, YellowMode};
 use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm, parse_hhmm};
 use crate::{
     AlertLevel, AppState, AppWindow, EditLesson, LessonRow, LessonState, LogEntry, LogKind, Theme,
@@ -168,6 +168,16 @@ fn bind_callbacks(window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
     });
 }
 
+/// Назва тривоги. Рівні розрізняє лише alerts.in.ua (`levels`), для інших
+/// джерел тривога просто «повітряна».
+fn alert_name(level: ThreatLevel, levels: bool) -> &'static str {
+    match (level, levels) {
+        (ThreatLevel::Yellow, _) => "Тривога жовтого рівня",
+        (ThreatLevel::Red, true) => "Тривога червоного рівня",
+        (ThreatLevel::Red, false) => "Повітряна тривога",
+    }
+}
+
 /// Текст дзвінка для журналу та картки «Наступний дзвінок».
 fn bell_text(event: &BellEvent) -> String {
     let n = event.lesson;
@@ -322,27 +332,60 @@ impl Controller {
             self.last_error = update.error.clone();
         }
 
-        let transition = self.tracker.update(
-            update.status,
-            self.config.alert.partial_is_alert,
-            update.checked_at,
-        );
+        let alert = update.reading.alert(&self.config.alert);
+        let transition = self
+            .tracker
+            .update(update.reading, alert, update.checked_at);
+        // Окремі звуки — лише для тривоги жовтого рівня в режимі «Окремі звуки».
+        let separate = |level| {
+            level == ThreatLevel::Yellow && self.config.alert.yellow == YellowMode::Separate
+        };
+        let region = &update.region;
+        let levels = self.config.alert.provider == AlertProvider::AlertsInUa;
         match transition {
-            Transition::Started => {
-                self.player.play(Sound::Siren, &self.config.sound);
+            Transition::Started(level) => {
+                let siren = if separate(level) {
+                    Sound::YellowSiren
+                } else {
+                    Sound::Siren
+                };
+                self.player.play(siren, &self.config.sound);
                 self.add_log(
                     LogKind::Alert,
-                    format!("Повітряна тривога: {}", update.region),
+                    format!("{}: {region}", alert_name(level, levels)),
                 );
             }
-            Transition::Ended => {
-                if self.config.alert.play_all_clear {
-                    self.player.play(Sound::AllClear, &self.config.sound);
+            Transition::Changed(ThreatLevel::Red) => {
+                // Якщо тривога жовтого рівня мала власний сигнал, на червоному звучить сирена.
+                if self.config.alert.yellow == YellowMode::Separate {
+                    self.player.play(Sound::Siren, &self.config.sound);
                 }
                 self.add_log(
-                    LogKind::AllClear,
-                    format!("Відбій тривоги: {}", update.region),
+                    LogKind::Alert,
+                    format!("Тривогу підвищено до червоного рівня: {region}"),
                 );
+            }
+            Transition::Changed(ThreatLevel::Yellow) => {
+                self.add_log(
+                    LogKind::Info,
+                    format!("Рівень тривоги знижено до жовтого: {region}"),
+                );
+            }
+            Transition::Ended(level) => {
+                if self.config.alert.play_all_clear {
+                    let all_clear = if separate(level) {
+                        Sound::YellowAllClear
+                    } else {
+                        Sound::AllClear
+                    };
+                    self.player.play(all_clear, &self.config.sound);
+                }
+                let text = match (level, levels) {
+                    (ThreatLevel::Yellow, _) => "Відбій тривоги жовтого рівня",
+                    (ThreatLevel::Red, true) => "Відбій тривоги червоного рівня",
+                    (ThreatLevel::Red, false) => "Відбій тривоги",
+                };
+                self.add_log(LogKind::AllClear, format!("{text}: {region}"));
             }
             Transition::None => {}
         }
@@ -451,6 +494,7 @@ impl Controller {
         let location = Location::from_config(&self.config.alert).map(|l| l.title());
         let region = location.as_deref().unwrap_or("Область не вибрано");
         let provider = self.config.alert.provider.title();
+        let levels = self.config.alert.provider == AlertProvider::AlertsInUa;
         let tracker = &self.tracker;
 
         let (level, title, detail, error) = match &self.last_update {
@@ -474,21 +518,30 @@ impl Controller {
             ),
             Some(update) => {
                 let known = tracker.last_known();
+                let yellow = known.is_yellow();
                 let level = if tracker.is_active() {
                     AlertLevel::Active
                 } else {
-                    match known {
+                    match known.status {
                         AlertStatus::Partial => AlertLevel::Partial,
                         AlertStatus::Clear => AlertLevel::Clear,
+                        // Тривога жовтого рівня, на яку не треба реагувати, — лише попередження.
+                        AlertStatus::Active if yellow => AlertLevel::Partial,
                         AlertStatus::Active => AlertLevel::Active,
                         AlertStatus::Unknown => AlertLevel::Unknown,
                     }
                 };
-                let title = match known {
-                    AlertStatus::Active => "Повітряна тривога",
-                    AlertStatus::Partial => "Тривога в частині громад",
-                    AlertStatus::Clear => "Тривоги немає",
-                    AlertStatus::Unknown => "Немає даних",
+                let title = match (known.status, known.level) {
+                    (AlertStatus::Active, level) => alert_name(level, levels),
+                    (AlertStatus::Partial, ThreatLevel::Yellow) => {
+                        "Тривога жовтого рівня в частині громад"
+                    }
+                    (AlertStatus::Partial, ThreatLevel::Red) if levels => {
+                        "Тривога червоного рівня в частині громад"
+                    }
+                    (AlertStatus::Partial, ThreatLevel::Red) => "Тривога в частині громад",
+                    (AlertStatus::Clear, _) => "Тривоги немає",
+                    (AlertStatus::Unknown, _) => "Немає даних",
                 };
                 let detail = match &update.error {
                     Some(error) => format!("Помилка: {error}"),
@@ -500,6 +553,10 @@ impl Controller {
                 (level, title, detail, update.error.is_some())
             }
         };
+        let yellow = self.drill.is_none()
+            && self.config.alert.enabled
+            && self.last_update.as_ref().is_some_and(|u| u.enabled)
+            && tracker.last_known().is_yellow();
 
         // Навчальна тривога має пріоритет у відображенні.
         let (level, title, region, detail, error, started) = match self.drill {
@@ -530,6 +587,8 @@ impl Controller {
         self.with_window(|w| {
             let state = w.global::<AppState>();
             state.set_alert_level(level);
+            state.set_alert_yellow(yellow);
+            state.set_alert_levels(levels);
             state.set_alert_title(title.into());
             state.set_alert_region(region.into());
             state.set_alert_detail(detail.into());
@@ -679,6 +738,8 @@ impl Controller {
             1 => Sound::Siren,
             3 => Sound::Silence,
             4 => Sound::Anthem,
+            5 => Sound::YellowSiren,
+            6 => Sound::YellowAllClear,
             _ => Sound::AllClear,
         };
         // Прослуховування з налаштувань форми, навіть не збережених.

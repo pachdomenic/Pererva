@@ -198,6 +198,66 @@ export component SettingsPage {
                             }
                         }
                     }
+                    // Рівні тривоги розрізняє лише alerts.in.ua.
+                    if AppState.settings.provider == 0: VerticalLayout {
+                        spacing: 12px;
+
+                        Divider { }
+                        Text {
+                            text: "Тривога жовтого рівня";
+                            color: Theme.on-surface-variant;
+                            font-size: Type.label-large;
+                            font-weight: Type.medium;
+                        }
+                        Text {
+                            text: AppState.settings.yellow-mode == 0
+                                ? "Лише показується на головній: без сирени, дзвінки подаються"
+                                : AppState.settings.yellow-mode == 1
+                                ? "Як тривога червоного рівня: та сама сирена і той самий відбій"
+                                : "Як тривога червоного рівня, але з власними сигналами початку і відбою";
+                            color: Theme.on-surface-variant;
+                            font-size: Type.body-medium;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+
+                            ButtonGroup {
+                                items: [
+                                    { label: "Не реагувати", icon: Icons.info },
+                                    { label: "Як червоного рівня", icon: Icons.siren },
+                                    { label: "Окремі звуки", icon: Icons.sound },
+                                ];
+                                selected: AppState.settings.yellow-mode;
+                                selected-changed(index) => {
+                                    AppState.settings.yellow-mode = index;
+                                    AppState.settings-changed();
+                                }
+                            }
+                        }
+                        if AppState.settings.yellow-mode == 2: SoundFileRow {
+                            label: "Сигнал тривоги жовтого рівня";
+                            placeholder: "Вбудований сигнал «ті-ту»";
+                            path: AppState.settings.yellow-siren-file;
+                            sound: 5;
+                            edited(text) => {
+                                AppState.settings.yellow-siren-file = text;
+                                AppState.settings-changed();
+                            }
+                        }
+                        if AppState.settings.yellow-mode == 2: SoundFileRow {
+                            label: "Відбій тривоги жовтого рівня";
+                            placeholder: "Вбудований передзвін відбою";
+                            path: AppState.settings.yellow-all-clear-file;
+                            sound: 6;
+                            edited(text) => {
+                                AppState.settings.yellow-all-clear-file = text;
+                                AppState.settings-changed();
+                            }
+                        }
+                        Divider { }
+                    }
+
                     SettingRow {
                         title: "Сигнал відбою";
                         description: "Подавати передзвін після завершення тривоги";

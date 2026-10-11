@@ -6,7 +6,7 @@ pub mod regions;
 pub mod tracker;
 pub mod ubilling;
 
-use crate::config::{AlertConfig, AlertProvider};
+use crate::config::{AlertConfig, AlertProvider, YellowMode};
 use regions::{District, Region};
 use std::fmt;
 use std::time::Duration;
@@ -25,14 +25,57 @@ pub enum AlertStatus {
     Active,
 }
 
-impl AlertStatus {
-    /// Чи вважати стан тривогою з урахуванням налаштування для часткових тривог.
-    pub fn is_alert(self, partial_is_alert: bool) -> bool {
-        match self {
-            AlertStatus::Active => true,
-            AlertStatus::Partial => partial_is_alert,
-            AlertStatus::Clear | AlertStatus::Unknown => false,
+/// Рівень тривоги за alerts.in.ua. Інші джерела рівнів не розрізняють — для
+/// них тривога завжди червона.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ThreatLevel {
+    #[default]
+    Red,
+    Yellow,
+}
+
+/// Стан тривоги разом з її рівнем.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Reading {
+    pub status: AlertStatus,
+    /// Має сенс лише для `Active` і `Partial`.
+    pub level: ThreatLevel,
+}
+
+impl From<AlertStatus> for Reading {
+    fn from(status: AlertStatus) -> Self {
+        Self {
+            status,
+            level: ThreatLevel::Red,
         }
+    }
+}
+
+impl Reading {
+    #[cfg(test)]
+    pub fn yellow(status: AlertStatus) -> Self {
+        Self {
+            status,
+            level: ThreatLevel::Yellow,
+        }
+    }
+
+    /// Рівень тривоги, на яку треба реагувати, з урахуванням налаштувань
+    /// часткових і жовтих тривог; `None` — реагувати не треба.
+    pub fn alert(self, config: &AlertConfig) -> Option<ThreatLevel> {
+        let alert = match self.status {
+            AlertStatus::Active => true,
+            AlertStatus::Partial => config.partial_is_alert,
+            AlertStatus::Clear | AlertStatus::Unknown => false,
+        };
+        let ignored = self.level == ThreatLevel::Yellow && config.yellow == YellowMode::Ignore;
+        (alert && !ignored).then_some(self.level)
+    }
+
+    /// Чи є тривога жовтого рівня (повна або часткова).
+    pub fn is_yellow(self) -> bool {
+        self.level == ThreatLevel::Yellow
+            && matches!(self.status, AlertStatus::Active | AlertStatus::Partial)
     }
 }
 
@@ -108,11 +151,6 @@ impl Location {
         Some(Self { region, district })
     }
 
-    /// Ідентифікатор alerts.in.ua: району, якщо його вибрано, інакше області.
-    pub fn uid(&self) -> u32 {
-        self.district.map_or(self.region.uid, |d| d.uid)
-    }
-
     pub fn title(&self) -> String {
         match self.district {
             Some(district) => format!("{}, {}", district.name, self.region.name),
@@ -123,7 +161,7 @@ impl Location {
 
 /// Джерело даних про тривогу.
 pub trait AlertSource: Send {
-    fn fetch(&self, location: &Location) -> Result<AlertStatus, FetchError>;
+    fn fetch(&self, location: &Location) -> Result<Reading, FetchError>;
 }
 
 pub(crate) fn http_agent() -> ureq::Agent {
@@ -156,10 +194,32 @@ mod tests {
     }
 
     #[test]
+    fn reading_respects_partial_and_yellow_settings() {
+        let mut config = AlertConfig::default();
+        let red = Reading::from(AlertStatus::Active);
+        let yellow = Reading::yellow(AlertStatus::Active);
+        let partial = Reading::yellow(AlertStatus::Partial);
+        assert_eq!(red.alert(&config), Some(ThreatLevel::Red));
+        assert_eq!(yellow.alert(&config), Some(ThreatLevel::Yellow));
+        assert_eq!(partial.alert(&config), None);
+        assert_eq!(Reading::yellow(AlertStatus::Clear).alert(&config), None);
+
+        config.partial_is_alert = true;
+        assert_eq!(partial.alert(&config), Some(ThreatLevel::Yellow));
+
+        config.yellow = YellowMode::Ignore;
+        assert_eq!(yellow.alert(&config), None);
+        assert_eq!(partial.alert(&config), None);
+        assert_eq!(red.alert(&config), Some(ThreatLevel::Red));
+        assert!(yellow.is_yellow() && !red.is_yellow());
+        assert!(!Reading::yellow(AlertStatus::Clear).is_yellow());
+    }
+
+    #[test]
     fn location_uses_district_for_alerts_in_ua() {
         let location =
             Location::from_config(&config(AlertProvider::AlertsInUa, 14, Some(78))).unwrap();
-        assert_eq!(location.uid(), 78);
+        assert_eq!(location.district.map(|d| d.uid), Some(78));
         assert_eq!(location.title(), "Бориспільський район, Київська область");
     }
 
@@ -168,7 +228,6 @@ mod tests {
         let location =
             Location::from_config(&config(AlertProvider::Ubilling, 14, Some(78))).unwrap();
         assert_eq!(location.district, None);
-        assert_eq!(location.uid(), 14);
         assert_eq!(location.title(), "Київська область");
     }
 
@@ -176,7 +235,8 @@ mod tests {
     fn location_ignores_district_of_other_region() {
         let location =
             Location::from_config(&config(AlertProvider::AlertsInUa, 27, Some(78))).unwrap();
-        assert_eq!(location.uid(), 27);
+        assert_eq!(location.region.uid, 27);
+        assert_eq!(location.district, None);
         assert!(Location::from_config(&config(AlertProvider::AlertsInUa, 1, None)).is_none());
     }
 }

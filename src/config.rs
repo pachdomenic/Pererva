@@ -42,6 +42,35 @@ impl AlertProvider {
     }
 }
 
+/// Як реагувати на тривогу жовтого рівня (лише alerts.in.ua).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum YellowMode {
+    /// Лише показувати, без сирени і без вимкнення дзвінків.
+    Ignore,
+    /// Як тривога червоного рівня, з тими самими звуками.
+    #[default]
+    SameAsRed,
+    /// Як тривога, але з окремими звуками початку і відбою.
+    Separate,
+}
+
+impl YellowMode {
+    pub const ALL: [YellowMode; 3] = [
+        YellowMode::Ignore,
+        YellowMode::SameAsRed,
+        YellowMode::Separate,
+    ];
+
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|m| *m == self).unwrap_or(0)
+    }
+
+    pub fn from_index(index: usize) -> Self {
+        Self::ALL.get(index).copied().unwrap_or_default()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AlertConfig {
@@ -60,6 +89,8 @@ pub struct AlertConfig {
     pub mute_bells_during_alert: bool,
     /// Вважати тривогу активною, якщо вона оголошена лише в частині громад області.
     pub partial_is_alert: bool,
+    /// Реакція на тривогу жовтого рівня.
+    pub yellow: YellowMode,
     /// Подавати сигнал відбою після завершення тривоги.
     pub play_all_clear: bool,
 }
@@ -75,6 +106,7 @@ impl Default for AlertConfig {
             poll_seconds: 20,
             mute_bells_during_alert: true,
             partial_is_alert: false,
+            yellow: YellowMode::default(),
             play_all_clear: true,
         }
     }
@@ -141,6 +173,9 @@ pub struct SoundConfig {
     pub bell_file: Option<PathBuf>,
     pub siren_file: Option<PathBuf>,
     pub all_clear_file: Option<PathBuf>,
+    /// Окремі звуки тривоги жовтого рівня (режим `yellow = "separate"`).
+    pub yellow_siren_file: Option<PathBuf>,
+    pub yellow_all_clear_file: Option<PathBuf>,
     /// Звукова доріжка хвилини мовчання; без неї — вбудований метроном.
     pub silence_file: Option<PathBuf>,
     /// Звукова доріжка державного гімну.
@@ -156,6 +191,8 @@ impl Default for SoundConfig {
             bell_file: None,
             siren_file: None,
             all_clear_file: None,
+            yellow_siren_file: None,
+            yellow_all_clear_file: None,
             silence_file: None,
             anthem_file: None,
         }
@@ -284,6 +321,8 @@ mod tests {
         config.alert.token = "token".into();
         config.alert.region_uid = 14;
         config.alert.district_uid = Some(78);
+        config.alert.yellow = YellowMode::Separate;
+        config.sound.yellow_siren_file = Some("/tmp/yellow.wav".into());
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
         config.ui.theme = ThemeMode::Dark;
@@ -336,6 +375,14 @@ mod tests {
         config.alert.district_uid = Some(99_999);
         config.normalize();
         assert_eq!(config.alert.district_uid, None);
+    }
+
+    #[test]
+    fn yellow_mode_index_roundtrip() {
+        for mode in YellowMode::ALL {
+            assert_eq!(YellowMode::from_index(mode.index()), mode);
+        }
+        assert_eq!(YellowMode::from_index(9), YellowMode::SameAsRed);
     }
 
     #[test]

@@ -37,6 +37,8 @@ export struct SettingsData {
     poll-seconds: int,
     mute-bells: bool,
     partial-is-alert: bool,
+    // 0 — не реагувати, 1 — як червоного рівня, 2 — окремі звуки.
+    yellow-mode: int,
     play-all-clear: bool,
     volume: float,
     bell-seconds: int,
@@ -44,6 +46,8 @@ export struct SettingsData {
     bell-file: string,
     siren-file: string,
     all-clear-file: string,
+    yellow-siren-file: string,
+    yellow-all-clear-file: string,
     memorial-enabled: bool,
     memorial-time: string,
     memorial-school-days: bool,
@@ -72,6 +76,10 @@ export global AppState {
 
     // Повітряна тривога.
     in property <AlertLevel> alert-level: AlertLevel.unknown;
+    // Тривога жовтого рівня (alerts.in.ua).
+    in property <bool> alert-yellow;
+    // Джерело розрізняє рівні тривоги (червоний / жовтий).
+    in property <bool> alert-levels;
     in property <string> alert-title: "Немає даних";
     in property <string> alert-region;
     in property <string> alert-detail;

@@ -10,27 +10,33 @@ import { WavyProgress, RingProgress, ExpressiveShape, ShapeKind } from "../compo
 
 // Кольори картки тривоги залежно від рівня.
 global AlertColors {
-    out property <color> container: AppState.alert-level == AlertLevel.active ? Theme.error-container
-        : AppState.alert-level == AlertLevel.partial ? Theme.warning-container
+    // Тривога жовтого рівня, на яку реагуємо, — у жовтих кольорах замість червоних.
+    private property <bool> red: AppState.alert-level == AlertLevel.active && !AppState.alert-yellow;
+    private property <bool> yellow: AppState.alert-level == AlertLevel.partial
+        || (AppState.alert-level == AlertLevel.active && AppState.alert-yellow);
+    out property <color> container: red ? Theme.error-container
+        : yellow ? Theme.warning-container
         : AppState.alert-level == AlertLevel.clear ? Theme.success-container
         : Theme.surface-container-high;
-    out property <color> on-container: AppState.alert-level == AlertLevel.active ? Theme.on-error-container
-        : AppState.alert-level == AlertLevel.partial ? Theme.on-warning-container
+    out property <color> on-container: red ? Theme.on-error-container
+        : yellow ? Theme.on-warning-container
         : AppState.alert-level == AlertLevel.clear ? Theme.on-success-container
         : Theme.on-surface;
-    out property <color> accent: AppState.alert-level == AlertLevel.active ? Theme.error
-        : AppState.alert-level == AlertLevel.partial ? Theme.warning
+    out property <color> accent: red ? Theme.error
+        : yellow ? Theme.warning
         : AppState.alert-level == AlertLevel.clear ? Theme.success
         : Theme.outline;
-    out property <color> on-accent: AppState.alert-level == AlertLevel.active ? Theme.on-error
+    out property <color> on-accent: red ? Theme.on-error
         : AppState.alert-level == AlertLevel.clear ? Theme.on-success
         : Theme.surface;
 }
 
 // Банер на всю ширину під час тривоги.
 component AlertBanner inherits Rectangle {
+    private property <bool> yellow: AppState.alert-yellow && !AppState.drill-active;
+    private property <color> foreground: yellow ? Theme.surface : Theme.on-error;
     border-radius: Shape.extra-large-increased;
-    background: Theme.error;
+    background: yellow ? Theme.warning : Theme.error;
     min-height: 96px;
 
     HorizontalLayout {
@@ -46,14 +52,14 @@ component AlertBanner inherits Rectangle {
             ExpressiveShape {
                 width: parent.width;
                 shape: ShapeKind.burst;
-                color: Theme.on-error;
+                color: foreground;
                 spinning: true;
             }
             Image {
                 source: Icons.siren;
                 width: 32px;
                 height: 32px;
-                colorize: Theme.error;
+                colorize: root.background;
             }
         }
         VerticalLayout {
@@ -61,8 +67,10 @@ component AlertBanner inherits Rectangle {
             spacing: 4px;
 
             Text {
-                text: AppState.drill-active ? "НАВЧАЛЬНА ТРИВОГА" : "ПОВІТРЯНА ТРИВОГА";
-                color: Theme.on-error;
+                text: AppState.drill-active ? "НАВЧАЛЬНА ТРИВОГА"
+                    : yellow ? "ТРИВОГА ЖОВТОГО РІВНЯ"
+                    : AppState.alert-levels ? "ТРИВОГА ЧЕРВОНОГО РІВНЯ" : "ПОВІТРЯНА ТРИВОГА";
+                color: foreground;
                 font-size: Type.headline-medium;
                 font-weight: Type.heavy;
                 letter-spacing: 1px;
@@ -70,7 +78,7 @@ component AlertBanner inherits Rectangle {
             Text {
                 text: (AppState.drill-active ? "Тренування: пройдіть до укриття." : "Негайно пройдіть до укриття.")
                     + (AppState.bells-muted ? " Шкільні дзвінки вимкнено до відбою." : "");
-                color: Theme.on-error;
+                color: foreground;
                 font-size: Type.body-large;
                 wrap: word-wrap;
             }

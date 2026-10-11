@@ -1,49 +1,53 @@
 //! Відстеження початку і кінця тривоги за послідовністю опитувань.
 
-use super::AlertStatus;
+use super::{AlertStatus, Reading, ThreatLevel};
 use chrono::{DateTime, Local};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Transition {
     None,
-    Started,
-    Ended,
+    Started(ThreatLevel),
+    /// Тривога триває, але змінився її рівень (жовтий ↔ червоний).
+    Changed(ThreatLevel),
+    /// Тривога завершилась; рівень — той, що був перед відбоєм.
+    Ended(ThreatLevel),
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct AlertTracker {
-    active: bool,
+    /// Рівень тривоги, що триває.
+    active: Option<ThreatLevel>,
     /// Останній достовірний стан (без `Unknown`).
-    last_known: AlertStatus,
+    last_known: Reading,
     started_at: Option<DateTime<Local>>,
     ended_at: Option<DateTime<Local>>,
 }
 
 impl AlertTracker {
-    /// Обробляє черговий стан. `Unknown` (немає даних) не змінює стану тривоги,
-    /// щоб збій мережі не вмикав відбій посеред тривоги.
+    /// Обробляє черговий стан. `alert` — рівень тривоги, на яку треба
+    /// реагувати (див. [`Reading::alert`]). `Unknown` (немає даних) не змінює
+    /// стану тривоги, щоб збій мережі не вмикав відбій посеред тривоги.
     pub fn update(
         &mut self,
-        status: AlertStatus,
-        partial_is_alert: bool,
+        reading: Reading,
+        alert: Option<ThreatLevel>,
         now: DateTime<Local>,
     ) -> Transition {
-        if status == AlertStatus::Unknown {
+        if reading.status == AlertStatus::Unknown {
             return Transition::None;
         }
-        self.last_known = status;
-        let alert = status.is_alert(partial_is_alert);
-        match (self.active, alert) {
-            (false, true) => {
-                self.active = true;
+        self.last_known = reading;
+        let previous = std::mem::replace(&mut self.active, alert);
+        match (previous, alert) {
+            (None, Some(level)) => {
                 self.started_at = Some(now);
-                Transition::Started
+                Transition::Started(level)
             }
-            (true, false) => {
-                self.active = false;
+            (Some(level), None) => {
                 self.ended_at = Some(now);
-                Transition::Ended
+                Transition::Ended(level)
             }
+            (Some(old), Some(new)) if old != new => Transition::Changed(new),
             _ => Transition::None,
         }
     }
@@ -54,49 +58,52 @@ impl AlertTracker {
     }
 
     pub fn is_active(&self) -> bool {
-        self.active
+        self.active.is_some()
     }
 
-    pub fn last_known(&self) -> AlertStatus {
+    pub fn last_known(&self) -> Reading {
         self.last_known
     }
 
     pub fn started_at(&self) -> Option<DateTime<Local>> {
-        self.started_at.filter(|_| self.active)
+        self.started_at.filter(|_| self.is_active())
     }
 
     pub fn ended_at(&self) -> Option<DateTime<Local>> {
-        self.ended_at.filter(|_| !self.active)
+        self.ended_at.filter(|_| !self.is_active())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{AlertConfig, YellowMode};
     use chrono::{Duration, TimeZone};
 
     fn at(minutes: i64) -> DateTime<Local> {
         Local.with_ymd_and_hms(2026, 10, 12, 9, 0, 0).unwrap() + Duration::minutes(minutes)
     }
 
+    /// Оновлення трекера з урахуванням налаштувань часткових і жовтих тривог.
+    fn feed(t: &mut AlertTracker, reading: Reading, config: &AlertConfig, m: i64) -> Transition {
+        t.update(reading, reading.alert(config), at(m))
+    }
+
+    const RED: ThreatLevel = ThreatLevel::Red;
+    const YELLOW: ThreatLevel = ThreatLevel::Yellow;
+
     #[test]
     fn start_and_end() {
+        let c = AlertConfig::default();
         let mut t = AlertTracker::default();
-        assert_eq!(t.update(AlertStatus::Clear, false, at(0)), Transition::None);
-        assert_eq!(
-            t.update(AlertStatus::Active, false, at(1)),
-            Transition::Started
-        );
+        let active = Reading::from(AlertStatus::Active);
+        let clear = Reading::from(AlertStatus::Clear);
+        assert_eq!(feed(&mut t, clear, &c, 0), Transition::None);
+        assert_eq!(feed(&mut t, active, &c, 1), Transition::Started(RED));
         assert!(t.is_active());
         assert_eq!(t.started_at(), Some(at(1)));
-        assert_eq!(
-            t.update(AlertStatus::Active, false, at(2)),
-            Transition::None
-        );
-        assert_eq!(
-            t.update(AlertStatus::Clear, false, at(30)),
-            Transition::Ended
-        );
+        assert_eq!(feed(&mut t, active, &c, 2), Transition::None);
+        assert_eq!(feed(&mut t, clear, &c, 30), Transition::Ended(RED));
         assert!(!t.is_active());
         assert_eq!(t.started_at(), None);
         assert_eq!(t.ended_at(), Some(at(30)));
@@ -104,49 +111,83 @@ mod tests {
 
     #[test]
     fn active_at_startup_starts_alert() {
+        let c = AlertConfig::default();
         let mut t = AlertTracker::default();
         assert_eq!(
-            t.update(AlertStatus::Active, false, at(0)),
-            Transition::Started
+            feed(&mut t, AlertStatus::Active.into(), &c, 0),
+            Transition::Started(RED)
         );
     }
 
     #[test]
     fn unknown_keeps_state() {
+        let c = AlertConfig::default();
         let mut t = AlertTracker::default();
-        t.update(AlertStatus::Active, false, at(0));
+        feed(&mut t, AlertStatus::Active.into(), &c, 0);
         assert_eq!(
-            t.update(AlertStatus::Unknown, false, at(1)),
+            feed(&mut t, AlertStatus::Unknown.into(), &c, 1),
             Transition::None
         );
         assert!(t.is_active());
-        assert_eq!(t.last_known(), AlertStatus::Active);
+        assert_eq!(t.last_known().status, AlertStatus::Active);
     }
 
     #[test]
     fn partial_depends_on_setting() {
+        let mut c = AlertConfig::default();
+        let partial = Reading::from(AlertStatus::Partial);
         let mut t = AlertTracker::default();
+        assert_eq!(feed(&mut t, partial, &c, 0), Transition::None);
+        assert_eq!(t.last_known().status, AlertStatus::Partial);
+        c.partial_is_alert = true;
+        assert_eq!(feed(&mut t, partial, &c, 1), Transition::Started(RED));
+        c.partial_is_alert = false;
+        assert_eq!(feed(&mut t, partial, &c, 2), Transition::Ended(RED));
+    }
+
+    #[test]
+    fn yellow_alert_escalates_and_ends() {
+        let c = AlertConfig::default();
+        let mut t = AlertTracker::default();
+        let yellow = Reading::yellow(AlertStatus::Active);
+        let red = Reading::from(AlertStatus::Active);
+        assert_eq!(feed(&mut t, yellow, &c, 0), Transition::Started(YELLOW));
+        assert!(t.is_active());
+        assert_eq!(feed(&mut t, red, &c, 5), Transition::Changed(RED));
+        assert_eq!(t.started_at(), Some(at(0)));
+        assert_eq!(feed(&mut t, yellow, &c, 9), Transition::Changed(YELLOW));
         assert_eq!(
-            t.update(AlertStatus::Partial, false, at(0)),
-            Transition::None
-        );
-        assert_eq!(t.last_known(), AlertStatus::Partial);
-        assert_eq!(
-            t.update(AlertStatus::Partial, true, at(1)),
-            Transition::Started
-        );
-        assert_eq!(
-            t.update(AlertStatus::Partial, false, at(2)),
-            Transition::Ended
+            feed(&mut t, AlertStatus::Clear.into(), &c, 20),
+            Transition::Ended(YELLOW)
         );
     }
 
     #[test]
-    fn reset_clears_everything() {
+    fn ignored_yellow_is_not_an_alert() {
+        let c = AlertConfig {
+            yellow: YellowMode::Ignore,
+            ..AlertConfig::default()
+        };
         let mut t = AlertTracker::default();
-        t.update(AlertStatus::Active, false, at(0));
+        let yellow = Reading::yellow(AlertStatus::Active);
+        assert_eq!(feed(&mut t, yellow, &c, 0), Transition::None);
+        assert!(!t.is_active());
+        assert!(t.last_known().is_yellow());
+        // Підвищення до червоного рівня — це вже початок тривоги.
+        assert_eq!(
+            feed(&mut t, AlertStatus::Active.into(), &c, 3),
+            Transition::Started(RED)
+        );
+        assert_eq!(feed(&mut t, yellow, &c, 6), Transition::Ended(RED));
+    }
+
+    #[test]
+    fn reset_clears_everything() {
+        let c = AlertConfig::default();
+        let mut t = AlertTracker::default();
+        feed(&mut t, AlertStatus::Active.into(), &c, 0);
         t.reset();
         assert!(!t.is_active());
-        assert_eq!(t.last_known(), AlertStatus::Unknown);
+        assert_eq!(t.last_known().status, AlertStatus::Unknown);
     }
 }

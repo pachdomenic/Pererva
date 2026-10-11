@@ -2,7 +2,7 @@
 
 use crate::SettingsData;
 use crate::alert::regions::{self, REGIONS};
-use crate::config::{AlertProvider, Config, ThemeMode};
+use crate::config::{AlertProvider, Config, ThemeMode, YellowMode};
 use crate::schedule::{format_hhmm, parse_hhmm};
 use std::path::PathBuf;
 
@@ -45,6 +45,7 @@ pub fn to_form(config: &Config) -> SettingsData {
         poll_seconds: config.alert.poll_seconds as i32,
         mute_bells: config.alert.mute_bells_during_alert,
         partial_is_alert: config.alert.partial_is_alert,
+        yellow_mode: config.alert.yellow.index() as i32,
         play_all_clear: config.alert.play_all_clear,
         volume: config.sound.volume,
         bell_seconds: config.sound.bell_seconds as i32,
@@ -52,6 +53,8 @@ pub fn to_form(config: &Config) -> SettingsData {
         bell_file: path_to_string(&config.sound.bell_file),
         siren_file: path_to_string(&config.sound.siren_file),
         all_clear_file: path_to_string(&config.sound.all_clear_file),
+        yellow_siren_file: path_to_string(&config.sound.yellow_siren_file),
+        yellow_all_clear_file: path_to_string(&config.sound.yellow_all_clear_file),
         memorial_enabled: config.memorial.enabled,
         memorial_time: format_hhmm(config.memorial.time).into(),
         memorial_school_days: config.memorial.school_days_only,
@@ -80,6 +83,7 @@ pub fn apply_form(base: &Config, form: &SettingsData) -> Config {
     alert.poll_seconds = form.poll_seconds.max(0) as u64;
     alert.mute_bells_during_alert = form.mute_bells;
     alert.partial_is_alert = form.partial_is_alert;
+    alert.yellow = YellowMode::from_index(form.yellow_mode.max(0) as usize);
     alert.play_all_clear = form.play_all_clear;
 
     let sound = &mut config.sound;
@@ -89,6 +93,8 @@ pub fn apply_form(base: &Config, form: &SettingsData) -> Config {
     sound.bell_file = string_to_path(&form.bell_file);
     sound.siren_file = string_to_path(&form.siren_file);
     sound.all_clear_file = string_to_path(&form.all_clear_file);
+    sound.yellow_siren_file = string_to_path(&form.yellow_siren_file);
+    sound.yellow_all_clear_file = string_to_path(&form.yellow_all_clear_file);
     sound.silence_file = string_to_path(&form.silence_file);
     sound.anthem_file = string_to_path(&form.anthem_file);
 
@@ -114,6 +120,8 @@ mod tests {
         config.alert.provider = AlertProvider::AlertsInUa;
         config.alert.region_uid = 27;
         config.alert.district_uid = Some(90);
+        config.alert.yellow = YellowMode::Separate;
+        config.sound.yellow_all_clear_file = Some("/tmp/yellow-clear.wav".into());
         config.sound.siren_file = Some("/tmp/siren.mp3".into());
         config.sound.anthem_file = Some("/tmp/anthem.ogg".into());
         config.memorial.time = chrono::NaiveTime::from_hms_opt(9, 5, 0).unwrap();

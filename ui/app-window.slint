@@ -53,7 +53,7 @@ export component AppWindow inherits Window {
         },
     ];
 
-    title: AppState.alert-level == AlertLevel.active ? "Повітряна тривога — Шкільні дзвінки" : "Шкільні дзвінки";
+    title: AppState.alert-level == AlertLevel.active ? AppState.alert-title + " — Шкільні дзвінки" : "Шкільні дзвінки";
     icon: @image-url("../packaging/shkilni-dzvinky.svg");
     min-width: 400px;
     min-height: 560px;

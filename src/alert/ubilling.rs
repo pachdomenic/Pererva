@@ -5,7 +5,7 @@
 //! `{"states": {"Київська область": {"alertnow": true, ...}, ...}}`.
 //! Районів агрегатор не розрізняє, тому завжди береться стан області.
 
-use super::{AlertSource, AlertStatus, FetchError, Location, http_agent, regions::Region};
+use super::{AlertSource, AlertStatus, FetchError, Location, Reading, http_agent, regions::Region};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -24,9 +24,10 @@ impl Ubilling {
 }
 
 impl AlertSource for Ubilling {
-    fn fetch(&self, location: &Location) -> Result<AlertStatus, FetchError> {
+    fn fetch(&self, location: &Location) -> Result<Reading, FetchError> {
         let body = self.agent.get(URL).call()?.body_mut().read_to_string()?;
-        parse(&body, location.region)
+        // Рівнів тривоги агрегатор не розрізняє — вважаємо її червоною.
+        parse(&body, location.region).map(Reading::from)
     }
 }
 

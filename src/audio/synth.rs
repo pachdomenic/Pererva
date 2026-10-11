@@ -4,6 +4,7 @@
 //!   ~18 разів на секунду, чаша звучить набором негармонічних обертонів;
 //! - сирена повітряної тривоги — механічна сирена, що розкручується,
 //!   завиває (плавно піднімає і опускає тон) і зупиняється;
+//! - тривога жовтого рівня — двотонний сигнал «ті-ту», помітно відмінний від сирени;
 //! - відбій — спокійний висхідний триголосий передзвін;
 //! - хвилина мовчання — тихий метроном щосекунди, обрамлений м'якими
 //!   ударами гонга на початку і в кінці хвилини.
@@ -27,6 +28,7 @@ pub enum SynthKind {
     Siren,
     AllClear,
     Silence,
+    Warning,
 }
 
 /// Нескінченне джерело звуку обмеженої тривалості.
@@ -55,6 +57,10 @@ impl Synth {
 
     pub fn siren(seconds: u32) -> Self {
         Self::new(SynthKind::Siren, Duration::from_secs(u64::from(seconds)))
+    }
+
+    pub fn warning(seconds: u32) -> Self {
+        Self::new(SynthKind::Warning, Duration::from_secs(u64::from(seconds)))
     }
 
     pub fn all_clear() -> Self {
@@ -86,6 +92,11 @@ impl Iterator for Synth {
             SynthKind::Bell => bell(t, length),
             SynthKind::AllClear => all_clear(t),
             SynthKind::Silence => silence(t, length),
+            SynthKind::Warning => {
+                let freq = warning_frequency(t);
+                self.phase = (self.phase + TAU * freq / f64::from(SAMPLE_RATE)) % TAU;
+                warning_wave(self.phase) * edges(t, length, 0.05) * 0.7
+            }
             SynthKind::Siren => {
                 let freq = siren_frequency(t, length);
                 self.phase = (self.phase + TAU * freq / f64::from(SAMPLE_RATE)) % TAU;
@@ -226,6 +237,26 @@ fn all_clear(t: f64) -> f64 {
     sum * 0.45 * edges(t, ALL_CLEAR_SECONDS, 0.05)
 }
 
+/// Тони сигналу тривоги жовтого рівня і тривалість кожного.
+const WARNING_HIGH: f64 = 880.0;
+const WARNING_LOW: f64 = 660.0;
+const WARNING_STEP: f64 = 0.6;
+
+/// Частота сигналу тривоги жовтого рівня: високий і низький тони по черзі.
+pub fn warning_frequency(t: f64) -> f64 {
+    if ((t / WARNING_STEP) as u64).is_multiple_of(2) {
+        WARNING_HIGH
+    } else {
+        WARNING_LOW
+    }
+}
+
+/// М'який тембр: синусоїда з невеликою третьою гармонікою. Фаза безперервна,
+/// тож перемикання тонів не клацає.
+fn warning_wave(phase: f64) -> f64 {
+    (phase.sin() + 0.25 * (3.0 * phase).sin()) / 1.25
+}
+
 /// Тривалість самої хвилини: гонг на 0-й і 60-й секунді, між ними — метроном.
 const MINUTE: f64 = 60.0;
 
@@ -277,7 +308,12 @@ mod tests {
 
     #[test]
     fn samples_are_in_range_and_audible() {
-        for synth in [Synth::bell(3), Synth::siren(15), Synth::all_clear()] {
+        for synth in [
+            Synth::bell(3),
+            Synth::siren(15),
+            Synth::warning(5),
+            Synth::all_clear(),
+        ] {
             let samples = render(synth);
             assert!(samples.iter().all(|s| s.is_finite() && s.abs() <= 1.0));
             assert!(rms(&samples) > 0.05, "звук занадто тихий");
@@ -286,11 +322,24 @@ mod tests {
 
     #[test]
     fn starts_and_ends_silently() {
-        for synth in [Synth::bell(3), Synth::siren(15), Synth::all_clear()] {
+        for synth in [
+            Synth::bell(3),
+            Synth::siren(15),
+            Synth::warning(5),
+            Synth::all_clear(),
+        ] {
             let samples = render(synth);
             assert!(samples[0].abs() < 1e-3);
             assert!(samples.last().unwrap().abs() < 1e-2);
         }
+    }
+
+    #[test]
+    fn warning_alternates_two_tones() {
+        assert_eq!(warning_frequency(0.1), WARNING_HIGH);
+        assert_eq!(warning_frequency(0.7), WARNING_LOW);
+        assert_eq!(warning_frequency(1.3), WARNING_HIGH);
+        assert_eq!(render(Synth::warning(4)).len(), 4 * SAMPLE_RATE as usize);
     }
 
     #[test]
