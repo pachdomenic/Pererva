@@ -233,8 +233,8 @@ impl ThemeMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Language {
-    #[default]
     System,
+    #[default]
     Uk,
     En,
 }
@@ -469,6 +469,7 @@ mod tests {
         }
         assert_eq!(Language::from_index(-1), Language::System);
         assert_eq!(Language::En.resolve(), Lang::En);
+        assert_eq!(Config::default().ui.language, Language::Uk);
     }
 
     #[test]

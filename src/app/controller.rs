@@ -63,8 +63,8 @@ pub struct Controller {
 /// Створює вікно, запускає фонові потоки і цикл подій.
 pub fn run(config_path: PathBuf) -> Result<(), slint::PlatformError> {
     let window = AppWindow::new()?;
-    // Поки налаштування не прочитано, помилки — мовою системи.
-    i18n::set(Language::System.resolve());
+    // Поки налаштування не прочитано, помилки — типовою мовою.
+    i18n::set(Language::default().resolve());
     let (config, load_error) = match Config::load(&config_path) {
         Ok(config) => (config, None),
         Err(err) => (Config::default(), Some(format!("{err:#}"))),
