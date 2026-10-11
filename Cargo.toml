@@ -9,10 +9,16 @@ repository = "https://github.com/pachdomenic/Pererva"
 readme = "README.md"
 
 [dependencies]
+anyhow = "1.0.104"
 chrono = { version = "0.4.45", features = ["serde"] }
+dirs = "7.0.0"
 serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.1.8"
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
