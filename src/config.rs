@@ -105,12 +105,47 @@ impl Default for SoundConfig {
     }
 }
 
+/// Колірна тема інтерфейсу.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThemeMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemeMode {
+    pub fn index(self) -> i32 {
+        match self {
+            ThemeMode::System => 0,
+            ThemeMode::Light => 1,
+            ThemeMode::Dark => 2,
+        }
+    }
+
+    pub fn from_index(index: i32) -> Self {
+        match index {
+            1 => ThemeMode::Light,
+            2 => ThemeMode::Dark,
+            _ => ThemeMode::System,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UiConfig {
+    pub theme: ThemeMode,
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub schedule: Schedule,
     pub alert: AlertConfig,
     pub sound: SoundConfig,
+    pub ui: UiConfig,
 }
 
 impl Config {
@@ -186,6 +221,7 @@ mod tests {
         config.alert.region_uid = 14;
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
+        config.ui.theme = ThemeMode::Dark;
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
     }
@@ -215,6 +251,14 @@ mod tests {
         );
         assert_eq!(config.sound.volume, 1.0);
         assert_eq!(config.schedule, Schedule::default());
+    }
+
+    #[test]
+    fn theme_index_roundtrip() {
+        for mode in [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark] {
+            assert_eq!(ThemeMode::from_index(mode.index()), mode);
+        }
+        assert_eq!(ThemeMode::from_index(42), ThemeMode::System);
     }
 
     #[test]
