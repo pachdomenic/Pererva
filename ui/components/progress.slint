@@ -1,0 +1,174 @@
+// Індикатори прогресу Material 3 Expressive і декоративні форми.
+
+import { Theme, Motion } from "../theme.slint";
+
+// Лінійний хвилястий індикатор: активна частина — хвиля, решта — пряма
+// доріжка з проміжком і крапкою-індикатором кінця.
+export component WavyProgress {
+    in property <float> progress: 0;
+    in property <color> active-color: Theme.primary;
+    in property <color> track-color: Theme.secondary-container;
+    // Хвиля «тече» (постійна перемальовка — вмикати лише коли потрібно).
+    in property <bool> flowing: false;
+
+    private property <length> wavelength: 32px;
+    private property <length> stroke: 4px;
+    private property <length> gap: 6px;
+    private property <float> p: max(0, min(1, progress));
+    private property <length> active-width: p * root.width;
+    private property <length> phase: flowing ? mod(animation-tick() / 1ms * 0.02, wavelength / 1px) * 1px : 0;
+
+    height: 12px;
+    min-width: 64px;
+
+    // Хвиля.
+    Rectangle {
+        x: 0;
+        width: active-width;
+        clip: true;
+
+        for i in ceil(root.width / wavelength) + 2: Path {
+            x: (i - 1) * wavelength + phase;
+            y: 0;
+            width: wavelength;
+            height: root.height;
+            // Координати в пікселях без масштабування, щоб сегменти стикувались.
+            fit: preserve;
+            stroke: active-color;
+            stroke-width: stroke;
+            fill: transparent;
+            commands: "M 0 6 Q 8 0.5 16 6 T 32 6";
+        }
+    }
+
+    // Доріжка.
+    Rectangle {
+        x: active-width + (p > 0 ? gap : 0);
+        width: max(0px, root.width - self.x);
+        height: stroke;
+        border-radius: stroke / 2;
+        background: track-color;
+    }
+
+    // Індикатор кінця.
+    Rectangle {
+        x: root.width - stroke;
+        width: stroke;
+        height: stroke;
+        border-radius: stroke / 2;
+        background: active-color;
+        visible: p < 0.98;
+    }
+}
+
+// Кругове кільце прогресу з проміжками між активною частиною і доріжкою.
+export component RingProgress {
+    in property <float> progress: 0;
+    in property <length> thickness: 10px;
+    in property <color> active-color: Theme.primary;
+    in property <color> track-color: Theme.secondary-container;
+
+    private property <float> p: max(0.001, min(0.999, progress));
+    // Path вписує viewbox з урахуванням товщини лінії, тож радіус — увесь viewbox.
+    private property <float> r: 50;
+    // Проміжок між частинами (у частках кола) з урахуванням заокруглених кінців.
+    private property <float> gap: min(0.1, thickness / (root.width * 3.14159) + 0.02);
+
+    private property <angle> a-end: p * 360deg;
+    private property <angle> t-start: min(359deg, (p + gap) * 360deg);
+    private property <angle> t-end: max(t-start, (1 - gap) * 360deg);
+
+    preferred-width: 160px;
+    preferred-height: self.width;
+
+    // Доріжка.
+    if t-end > t-start + 2deg: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        stroke: track-color;
+        stroke-width: thickness;
+        stroke-line-cap: round;
+        fill: transparent;
+
+        MoveTo {
+            x: 50 + r * sin(t-start);
+            y: 50 - r * cos(t-start);
+        }
+        ArcTo {
+            x: 50 + r * sin(t-end);
+            y: 50 - r * cos(t-end);
+            radius-x: r;
+            radius-y: r;
+            sweep: true;
+            large-arc: t-end - t-start > 180deg;
+        }
+    }
+
+    // Активна частина.
+    Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        stroke: active-color;
+        stroke-width: thickness;
+        stroke-line-cap: round;
+        fill: transparent;
+
+        MoveTo {
+            x: 50;
+            y: 50 - r;
+        }
+        ArcTo {
+            x: 50 + r * sin(a-end);
+            y: 50 - r * cos(a-end);
+            radius-x: r;
+            radius-y: r;
+            sweep: true;
+            large-arc: a-end > 180deg;
+        }
+    }
+}
+
+export enum ShapeKind { cookie, burst, flower, clover, circle }
+
+// Форма з бібліотеки Expressive. Перемикання форм — з пружинним «морфом»
+// (масштаб + обертання), обертання — опційно постійне.
+export component ExpressiveShape {
+    in property <ShapeKind> shape: cookie;
+    in property <color> color: Theme.primary-container;
+    in property <bool> spinning: false;
+    in property <bool> pulsing: false;
+
+    private property <angle> spin: spinning ? mod(animation-tick() / 1ms * 0.03, 360) * 1deg : 0deg;
+    private property <float> pulse: pulsing ? 1 + 0.06 * sin(animation-tick() / 1ms * 0.36deg) : 1;
+
+    preferred-width: 120px;
+    preferred-height: self.width;
+
+    // Пульсація без анімації (оновлюється щокадру), морф — з анімацією.
+    scaler := Rectangle {
+        width: root.width * pulse;
+        height: self.width;
+
+        for kind in [ShapeKind.cookie, ShapeKind.burst, ShapeKind.flower, ShapeKind.clover, ShapeKind.circle]: Image {
+            private property <bool> current: kind == shape;
+            source: kind == ShapeKind.cookie ? @image-url("../shapes/cookie-9.svg")
+                : kind == ShapeKind.burst ? @image-url("../shapes/soft-burst.svg")
+                : kind == ShapeKind.flower ? @image-url("../shapes/flower-8.svg")
+                : kind == ShapeKind.clover ? @image-url("../shapes/clover-4.svg")
+                : @image-url("../shapes/circle.svg");
+            colorize: color;
+            width: scaler.width * (current ? 1 : 0.6);
+            height: self.width;
+            x: (scaler.width - self.width) / 2;
+            y: (scaler.height - self.height) / 2;
+            opacity: current ? 1 : 0;
+            rotation-angle: spin + (current ? 0deg : -60deg);
+            animate width, x, y { duration: Motion.slow; easing: Motion.spatial-slow; }
+            animate opacity { duration: Motion.default; easing: Motion.effects; }
+        }
+    }
+}
