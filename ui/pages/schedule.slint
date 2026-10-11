@@ -1,0 +1,248 @@
+// Сторінка редагування розкладу дзвінків.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Shape, Type, Motion, Icons } from "../theme.slint";
+import { AppState } from "../state.slint";
+import { Card, CardKind, SectionHeader, SettingRow } from "../components/surfaces.slint";
+import { Button, ButtonKind, IconButton, Fab } from "../components/buttons.slint";
+import { TextField, Stepper, FilterChip } from "../components/inputs.slint";
+import { ExpressiveShape, ShapeKind } from "../components/progress.slint";
+
+component LessonEditor inherits Rectangle {
+    in property <int> index;
+    in property <string> start;
+    in property <string> end;
+    in property <string> duration;
+    in property <bool> start-error;
+    in property <bool> end-error;
+    in property <bool> narrow;
+
+    border-radius: Shape.large;
+    background: Theme.surface-container-low;
+    min-height: 80px;
+
+    HorizontalLayout {
+        padding: 12px;
+        padding-left: 16px;
+        spacing: narrow ? 8px : 16px;
+
+        Rectangle {
+            width: 48px;
+            height: 48px;
+            y: (parent.height - self.height) / 2;
+
+            ExpressiveShape {
+                width: parent.width;
+                shape: mod(index, 2) == 0 ? ShapeKind.cookie : ShapeKind.flower;
+                color: Theme.primary-container;
+            }
+            Text {
+                text: index + 1;
+                color: Theme.on-primary-container;
+                font-size: Type.title-large;
+                font-weight: Type.heavy;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            TextField {
+                width: narrow ? 92px : 120px;
+                label: "Початок";
+                placeholder: "08:30";
+                text: start;
+                centered: true;
+                error: start-error;
+                container-color: Theme.surface-container-low;
+                edited(text) => { AppState.lesson-edited(index, false, text); }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+
+            TextField {
+                width: narrow ? 92px : 120px;
+                label: "Кінець";
+                placeholder: "09:15";
+                text: end;
+                centered: true;
+                error: end-error;
+                container-color: Theme.surface-container-low;
+                edited(text) => { AppState.lesson-edited(index, true, text); }
+            }
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: duration;
+            color: start-error || end-error ? Theme.error : Theme.on-surface-variant;
+            font-size: Type.body-large;
+            font-weight: Type.medium;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            IconButton {
+                icon: Icons.delete;
+                tooltip: "Видалити урок";
+                clicked => { AppState.remove-lesson(index); }
+            }
+        }
+    }
+}
+
+export component SchedulePage {
+    in property <bool> narrow: false;
+
+    private property <[string]> day-names: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+
+    ScrollView {
+        width: root.width;
+        height: root.height;
+
+        VerticalLayout {
+            padding: narrow ? 16px : 24px;
+            padding-bottom: 112px;
+            spacing: 16px;
+            alignment: start;
+
+            Text {
+                text: "Розклад дзвінків";
+                color: Theme.on-surface;
+                font-size: Type.headline-large;
+                font-weight: Type.heavy;
+            }
+
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 16px;
+
+                    SectionHeader {
+                        text: "Навчальні дні";
+                        subtitle: "У ці дні дзвінки подаються за розкладом";
+                        icon: Icons.calendar-fill;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        for name[i] in day-names: FilterChip {
+                            text: name;
+                            selected: AppState.edit-days[i];
+                            toggled(value) => {
+                                AppState.edit-days[i] = value;
+                                AppState.schedule-changed();
+                            }
+                        }
+                    }
+                    SettingRow {
+                        title: "Попереджувальний дзвінок";
+                        description: "За скільки хвилин до уроку подати короткий дзвінок (0 — вимкнено)";
+
+                        Stepper {
+                            value: AppState.edit-warning;
+                            minimum: 0;
+                            maximum: 30;
+                            suffix: "хв";
+                            changed(value) => {
+                                AppState.edit-warning = value;
+                                AppState.schedule-changed();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                kind: CardKind.filled;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 10px;
+
+                    SectionHeader {
+                        text: "Уроки";
+                        subtitle: "Час у форматі ГГ:ХХ. Дзвінок подається на початку і в кінці кожного уроку";
+                        icon: Icons.clock;
+                    }
+
+                    for lesson[i] in AppState.edit-lessons: LessonEditor {
+                        index: i;
+                        start: lesson.start;
+                        end: lesson.end;
+                        duration: lesson.duration;
+                        start-error: lesson.start-error;
+                        end-error: lesson.end-error;
+                        narrow: narrow;
+                    }
+
+                    if AppState.edit-lessons.length == 0: Text {
+                        text: "Уроків немає — додайте перший";
+                        color: Theme.on-surface-variant;
+                        font-size: Type.body-large;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        padding-top: 4px;
+
+                        Button {
+                            text: "Додати урок";
+                            icon: Icons.add;
+                            kind: ButtonKind.tonal;
+                            clicked => { AppState.add-lesson(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Панель збереження, що виїжджає, коли є незбережені зміни.
+    save-bar := Rectangle {
+        x: (root.width - self.width) / 2;
+        y: AppState.schedule-dirty ? root.height - self.height - 24px : root.height + 8px;
+        width: min(root.width - 32px, 640px);
+        height: bar-layout.preferred-height;
+        border-radius: Shape.extra-large;
+        background: Theme.surface-container-highest;
+        drop-shadow-color: Theme.shadow.with-alpha(0.25);
+        drop-shadow-blur: 12px;
+        drop-shadow-offset-y: 4px;
+        animate y { duration: Motion.default; easing: Motion.spatial; }
+
+        bar-layout := HorizontalLayout {
+            padding: 12px;
+            padding-left: 24px;
+            spacing: 8px;
+
+            Text {
+                horizontal-stretch: 1;
+                text: AppState.schedule-error != "" ? AppState.schedule-error : "Є незбережені зміни";
+                color: AppState.schedule-error != "" ? Theme.error : Theme.on-surface;
+                font-size: Type.body-large;
+                font-weight: Type.medium;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+            Button {
+                text: "Скасувати";
+                kind: ButtonKind.text;
+                clicked => { AppState.revert-schedule(); }
+            }
+            Button {
+                text: "Зберегти";
+                icon: Icons.save;
+                enabled: AppState.schedule-error == "";
+                clicked => { AppState.save-schedule(); }
+            }
+        }
+    }
+}
