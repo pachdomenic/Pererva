@@ -14,9 +14,10 @@ const FILE_NAME: &str = "config.toml";
 #[serde(rename_all = "kebab-case")]
 pub enum AlertProvider {
     /// api.alerts.in.ua — офіційний API, потрібен токен.
-    #[default]
     AlertsInUa,
     /// ubilling.net.ua/aerialalerts — відкритий агрегатор без токена.
+    /// Типовий, щоб програма працювала одразу після встановлення.
+    #[default]
     Ubilling,
 }
 
@@ -213,7 +214,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("nested").join(FILE_NAME);
         let mut config = Config::default();
-        config.alert.provider = AlertProvider::Ubilling;
+        config.alert.provider = AlertProvider::AlertsInUa;
+        config.alert.token = "token".into();
         config.alert.region_uid = 14;
         config.sound.volume = 0.5;
         config.schedule.warning_minutes = 3;
@@ -230,7 +232,7 @@ mod tests {
             &path,
             r#"
             [alert]
-            provider = "ubilling"
+            provider = "alerts-in-ua"
             region_uid = 27
 
             [sound]
@@ -239,7 +241,7 @@ mod tests {
         )
         .unwrap();
         let config = Config::load(&path).unwrap();
-        assert_eq!(config.alert.provider, AlertProvider::Ubilling);
+        assert_eq!(config.alert.provider, AlertProvider::AlertsInUa);
         assert_eq!(config.alert.region_uid, 27);
         assert_eq!(
             config.alert.poll_seconds,

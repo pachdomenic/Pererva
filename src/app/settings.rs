@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn form_roundtrip_keeps_config() {
         let mut config = Config::default();
-        config.alert.provider = AlertProvider::Ubilling;
+        config.alert.provider = AlertProvider::AlertsInUa;
         config.alert.region_uid = 27;
         config.sound.siren_file = Some("/tmp/siren.mp3".into());
         config.ui.theme = ThemeMode::Dark;
