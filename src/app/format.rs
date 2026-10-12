@@ -80,13 +80,27 @@ pub fn ordinal(n: usize) -> String {
     format!("{n}-й")
 }
 
-/// Тривалість словами: «1 год 5 хв», «28 хв», «менше хвилини».
+/// Тривалість словами: «1 год 5 хв», «28 хв», «менше хвилини». Неповна
+/// хвилина округлюється вгору — для часу, що лишився до події.
 pub fn duration_words(duration: Duration) -> String {
     let total = duration.num_seconds().max(0);
-    let minutes = (total + 59) / 60;
     if total < 60 {
         return pick("менше хвилини", "less than a minute").into();
     }
+    minutes_words((total + 59) / 60)
+}
+
+/// Тривалість словами для часу, що вже минув: неповна хвилина
+/// відкидається, щоб «30 хв 10 с» не ставали «31 хв».
+pub fn elapsed_words(duration: Duration) -> String {
+    let total = duration.num_seconds().max(0);
+    if total < 60 {
+        return pick("менше хвилини", "less than a minute").into();
+    }
+    minutes_words(total / 60)
+}
+
+fn minutes_words(minutes: i64) -> String {
     let days = minutes / (24 * 60);
     let hours = minutes % (24 * 60) / 60;
     let mins = minutes % 60;
@@ -155,6 +169,16 @@ mod tests {
         assert_eq!(duration_words(Duration::minutes(60)), "1 год");
         assert_eq!(duration_words(Duration::minutes(65)), "1 год 5 хв");
         assert_eq!(duration_words(Duration::hours(50)), "2 дн 2 год");
+    }
+
+    #[test]
+    fn elapsed() {
+        assert_eq!(elapsed_words(Duration::seconds(59)), "менше хвилини");
+        assert_eq!(elapsed_words(Duration::seconds(60)), "1 хв");
+        assert_eq!(elapsed_words(Duration::seconds(30 * 60 + 10)), "30 хв");
+        assert_eq!(elapsed_words(Duration::seconds(3599)), "59 хв");
+        assert_eq!(elapsed_words(Duration::minutes(125)), "2 год 5 хв");
+        assert_eq!(elapsed_words(Duration::seconds(-5)), "менше хвилини");
     }
 
     #[test]

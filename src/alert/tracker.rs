@@ -1,7 +1,7 @@
 //! Відстеження початку і кінця тривоги за послідовністю опитувань.
 
 use super::{AlertStatus, Reading, ThreatLevel};
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Duration, Local};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Transition {
@@ -13,6 +13,15 @@ pub enum Transition {
     Ended(ThreatLevel),
 }
 
+/// Скільки триває (або тривала) тривога.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lasting {
+    pub duration: Duration,
+    /// `false` — тривога вже йшла, коли почалося стеження (запуск програми,
+    /// зміна області), і справжня тривалість більша: відомо лише «щонайменше».
+    pub exact: bool,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AlertTracker {
     /// Рівень тривоги, що триває.
@@ -21,6 +30,8 @@ pub struct AlertTracker {
     last_known: Reading,
     started_at: Option<DateTime<Local>>,
     ended_at: Option<DateTime<Local>>,
+    /// Чи бачили, як почалася остання тривога (до неї був відомий стан без неї).
+    seen_start: bool,
 }
 
 impl AlertTracker {
@@ -36,11 +47,13 @@ impl AlertTracker {
         if reading.status == AlertStatus::Unknown {
             return Transition::None;
         }
+        let had_data = self.last_known.status != AlertStatus::Unknown;
         self.last_known = reading;
         let previous = std::mem::replace(&mut self.active, alert);
         match (previous, alert) {
             (None, Some(level)) => {
                 self.started_at = Some(now);
+                self.seen_start = had_data;
                 Transition::Started(level)
             }
             (Some(level), None) => {
@@ -71,6 +84,22 @@ impl AlertTracker {
 
     pub fn ended_at(&self) -> Option<DateTime<Local>> {
         self.ended_at.filter(|_| !self.is_active())
+    }
+
+    /// Тривалість поточної тривоги на момент `now` або, якщо її вже немає,
+    /// останньої завершеної. `None` — тривоги ще не було.
+    pub fn lasting(&self, now: DateTime<Local>) -> Option<Lasting> {
+        let start = self.started_at?;
+        let end = if self.is_active() {
+            now
+        } else {
+            self.ended_at?
+        };
+        Some(Lasting {
+            // Якщо годинник перевели назад, тривалість не стає від'ємною.
+            duration: (end - start).max(Duration::zero()),
+            exact: self.seen_start,
+        })
     }
 }
 
@@ -107,6 +136,54 @@ mod tests {
         assert!(!t.is_active());
         assert_eq!(t.started_at(), None);
         assert_eq!(t.ended_at(), Some(at(30)));
+        assert_eq!(
+            t.lasting(at(45)),
+            Some(Lasting {
+                duration: Duration::minutes(29),
+                exact: true,
+            })
+        );
+    }
+
+    #[test]
+    fn lasting_of_current_alert() {
+        let c = AlertConfig::default();
+        let mut t = AlertTracker::default();
+        assert_eq!(t.lasting(at(0)), None);
+        feed(&mut t, AlertStatus::Clear.into(), &c, 0);
+        feed(&mut t, AlertStatus::Active.into(), &c, 10);
+        let lasting = t.lasting(at(40)).unwrap();
+        assert_eq!(lasting.duration, Duration::minutes(30));
+        assert!(lasting.exact);
+        // Зміна рівня не перезапускає відлік.
+        feed(&mut t, Reading::yellow(AlertStatus::Active), &c, 20);
+        assert_eq!(t.lasting(at(40)).unwrap().duration, Duration::minutes(30));
+        // Годинник переведено назад.
+        assert_eq!(t.lasting(at(5)).unwrap().duration, Duration::zero());
+    }
+
+    #[test]
+    fn lasting_is_inexact_when_alert_was_already_on() {
+        let c = AlertConfig::default();
+        let mut t = AlertTracker::default();
+        // Збій мережі до першої відповіді — початку тривоги ще не видно.
+        feed(&mut t, AlertStatus::Unknown.into(), &c, 0);
+        feed(&mut t, AlertStatus::Active.into(), &c, 1);
+        feed(&mut t, AlertStatus::Clear.into(), &c, 31);
+        assert_eq!(
+            t.lasting(at(31)),
+            Some(Lasting {
+                duration: Duration::minutes(30),
+                exact: false,
+            })
+        );
+        // Наступну тривогу вже видно від початку.
+        feed(&mut t, AlertStatus::Active.into(), &c, 40);
+        assert!(t.lasting(at(50)).unwrap().exact);
+        // Після скидання (зміна області) — знову невідомо.
+        t.reset();
+        feed(&mut t, AlertStatus::Active.into(), &c, 60);
+        assert!(!t.lasting(at(70)).unwrap().exact);
     }
 
     #[test]

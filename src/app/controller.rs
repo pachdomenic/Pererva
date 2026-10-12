@@ -2,11 +2,11 @@
 //! і обробляє дії користувача.
 
 use super::draft::ScheduleDraft;
-use super::format::{countdown, duration_words, long_date, ordinal, relative_day};
+use super::format::{countdown, duration_words, elapsed_words, long_date, ordinal, relative_day};
 use super::instance::Guard;
 use super::settings::{apply_form, district_names, region_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
-use crate::alert::tracker::{AlertTracker, Transition};
+use crate::alert::tracker::{AlertTracker, Lasting, Transition};
 use crate::alert::{AlertStatus, Location, ThreatLevel};
 use crate::audio::{Player, Sound};
 use crate::config::{AlertProvider, Config, Language, ThemeMode, YellowMode};
@@ -240,6 +240,16 @@ fn alert_name(level: ThreatLevel, levels: bool) -> &'static str {
     }
 }
 
+/// Скільки тривала тривога — для журналу і картки тривоги: «тривала 30 хв».
+fn lasted_text(lasting: Lasting) -> String {
+    let lasted = elapsed_words(lasting.duration);
+    if lasting.exact {
+        tr!("тривала {lasted}", "lasted {lasted}")
+    } else {
+        tr!("тривала щонайменше {lasted}", "lasted at least {lasted}")
+    }
+}
+
 /// Текст дзвінка для журналу та картки «Наступний дзвінок».
 fn bell_text(event: &BellEvent) -> String {
     let n = event.lesson;
@@ -253,6 +263,14 @@ fn bell_text(event: &BellEvent) -> String {
             "Попереджувальний дзвінок перед {n}-м уроком",
             "Warning bell before lesson {n}"
         ),
+    }
+}
+
+/// Тривалість навчальної тривоги: її початок завжди відомий.
+fn drill_lasting(start: DateTime<Local>, now: DateTime<Local>) -> Lasting {
+    Lasting {
+        duration: (now - start).max(Duration::zero()),
+        exact: true,
     }
 }
 
@@ -510,7 +528,11 @@ impl Controller {
                     }
                     (ThreatLevel::Red, false) => pick("Відбій тривоги", "All clear"),
                 };
-                self.add_log(LogKind::AllClear, format!("{text}: {region}"));
+                let mut entry = format!("{text}: {region}");
+                if let Some(lasting) = self.tracker.lasting(update.checked_at) {
+                    entry = format!("{entry} · {}", lasted_text(lasting));
+                }
+                self.add_log(LogKind::AllClear, entry);
             }
             Transition::None => {}
         }
@@ -706,7 +728,7 @@ impl Controller {
             && tracker.last_known().is_yellow();
 
         // Навчальна тривога має пріоритет у відображенні.
-        let (level, title, region, detail, error, started) = match self.drill {
+        let (level, title, region, detail, error, lasting) = match self.drill {
             Some(start) => (
                 AlertLevel::Active,
                 pick("Навчальна тривога", "Alert drill"),
@@ -717,20 +739,40 @@ impl Controller {
                 )
                 .to_owned(),
                 false,
-                Some(start),
+                Some((start, drill_lasting(start, now))),
             ),
-            None => (level, title, region, detail, error, tracker.started_at()),
+            None => {
+                let lasting = tracker.started_at().zip(tracker.lasting(now));
+                (level, title, region, detail, error, lasting)
+            }
         };
 
-        let since = if let Some(start) = started {
-            let (lasts, from) = (duration_words(now - start), start.format("%H:%M"));
-            tr!(
-                "Триває {lasts} · з {from}",
-                "Lasting {lasts} · since {from}"
-            )
+        let since = if let Some((start, lasting)) = lasting {
+            let (lasts, from) = (elapsed_words(lasting.duration), start.format("%H:%M"));
+            if lasting.exact {
+                tr!(
+                    "Триває {lasts} · з {from}",
+                    "Lasting {lasts} · since {from}"
+                )
+            } else {
+                // Тривога вже йшла під час запуску: справжнього початку не знаємо.
+                tr!(
+                    "Триває щонайменше {lasts} · помічено о {from}",
+                    "Lasting at least {lasts} · noticed at {from}"
+                )
+            }
         } else if let Some(end) = tracker.ended_at() {
-            let end = end.format("%H:%M");
-            tr!("Відбій о {end}", "All clear at {end}")
+            let end_time = end.format("%H:%M");
+            match tracker.lasting(now) {
+                Some(lasting) => {
+                    let lasted = lasted_text(lasting);
+                    tr!(
+                        "Відбій о {end_time} · {lasted}",
+                        "All clear at {end_time} · {lasted}"
+                    )
+                }
+                None => tr!("Відбій о {end_time}", "All clear at {end_time}"),
+            }
         } else {
             String::new()
         };
@@ -900,15 +942,19 @@ impl Controller {
                     pick("Навчальну тривогу розпочато", "Alert drill started").into(),
                 );
             }
-            Some(_) => {
+            Some(start) => {
                 if self.config.alert.play_all_clear {
                     self.player.play(Sound::AllClear, &self.config.sound);
                 } else {
                     self.player.stop();
                 }
+                let lasted = lasted_text(drill_lasting(start, Local::now()));
                 self.add_log(
                     LogKind::AllClear,
-                    pick("Навчальну тривогу завершено", "Alert drill ended").into(),
+                    tr!(
+                        "Навчальну тривогу завершено · {lasted}",
+                        "Alert drill ended · {lasted}"
+                    ),
                 );
             }
         }
@@ -1222,6 +1268,36 @@ mod tests {
         };
         assert_eq!(bell_text(&event), "Bell for lesson 3");
         i18n::set(Lang::Uk);
+    }
+
+    #[test]
+    fn lasted_texts() {
+        let lasting = |minutes, exact| Lasting {
+            duration: Duration::minutes(minutes) + Duration::seconds(20),
+            exact,
+        };
+        assert_eq!(lasted_text(lasting(30, true)), "тривала 30 хв");
+        assert_eq!(
+            lasted_text(lasting(95, false)),
+            "тривала щонайменше 1 год 35 хв"
+        );
+        i18n::set(Lang::En);
+        assert_eq!(lasted_text(lasting(30, true)), "lasted 30 min");
+        assert_eq!(lasted_text(lasting(30, false)), "lasted at least 30 min");
+        i18n::set(Lang::Uk);
+    }
+
+    #[test]
+    fn drill_lasting_is_never_negative() {
+        let start = Local::now();
+        assert_eq!(
+            drill_lasting(start, start - Duration::minutes(5)).duration,
+            Duration::zero()
+        );
+        assert_eq!(
+            drill_lasting(start, start + Duration::minutes(12)).duration,
+            Duration::minutes(12)
+        );
     }
 
     #[test]
