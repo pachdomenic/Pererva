@@ -475,6 +475,8 @@ component TodayCard inherits Card {
 }
 
 component LogCard inherits Card {
+    callback show-history;
+
     kind: CardKind.filled;
     min-height: body.min-height;
 
@@ -498,6 +500,14 @@ component LogCard inherits Card {
                 color: Theme.on-surface;
                 font-size: Type.title-large;
                 font-weight: Type.emphasized;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: @tr("Уся історія");
+                kind: ButtonKind.text;
+                size: 32px;
+                clicked => { show-history(); }
             }
         }
 
@@ -561,6 +571,7 @@ component LogCard inherits Card {
 
 export component HomePage {
     in property <bool> narrow: false;
+    callback show-history;
 
     ScrollView {
         width: root.width;
@@ -600,10 +611,10 @@ export component HomePage {
                 alignment: stretch;
 
                 TodayCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
-                LogCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; }
+                LogCard { horizontal-stretch: 1; preferred-width: 1px; min-width: 240px; show-history => { root.show-history(); } }
             }
             if narrow: TodayCard { }
-            if narrow: LogCard { }
+            if narrow: LogCard { show-history => { root.show-history(); } }
         }
     }
 }

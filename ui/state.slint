@@ -27,6 +27,17 @@ export struct LogEntry {
     kind: LogKind,
 }
 
+// Рядок сторінки «Історія»: заголовок дня, подія або кнопка «Показати ще».
+export enum HistoryRowKind { day, event, more }
+
+export struct HistoryRow {
+    row: HistoryRowKind,
+    // Для заголовка дня — назва дня, для події — її текст.
+    text: string,
+    time: string,
+    kind: LogKind,
+}
+
 export struct SettingsData {
     alert-enabled: bool,
     provider: int,
@@ -99,6 +110,13 @@ export global AppState {
     in property <[LessonRow]> today;
     in property <[LogEntry]> log;
 
+    // Історія подій з бази.
+    in property <[HistoryRow]> history;
+    // 0 — усі, 1 — тривоги, 2 — дзвінки, 3 — хвилина мовчання, 4 — помилки, 5 — інше.
+    in property <int> history-filter;
+    in property <string> history-summary;
+    in property <string> history-error;
+
     // Редагування розкладу.
     in property <[EditLesson]> edit-lessons;
     in-out property <[bool]> edit-days: [true, true, true, true, true, false, false];
@@ -140,6 +158,10 @@ export global AppState {
     callback preview-sound(int);
     callback theme-changed(int);
     callback language-changed(int);
+
+    callback history-opened();
+    callback history-filter-changed(int);
+    callback history-load-more();
 
     callback dismiss-toast();
 }

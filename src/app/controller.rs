@@ -2,7 +2,9 @@
 //! і обробляє дії користувача.
 
 use super::draft::ScheduleDraft;
-use super::format::{countdown, duration_words, elapsed_words, long_date, ordinal, relative_day};
+use super::format::{
+    countdown, day_label, duration_words, elapsed_words, long_date, ordinal, relative_day,
+};
 use super::instance::Guard;
 use super::settings::{apply_form, district_names, region_names, to_form};
 use crate::alert::monitor::{AlertMonitor, AlertUpdate};
@@ -10,13 +12,14 @@ use crate::alert::tracker::{AlertTracker, Lasting, Transition};
 use crate::alert::{AlertStatus, Location, ThreatLevel};
 use crate::audio::{Player, Sound};
 use crate::config::{AlertProvider, Config, Language, ThemeMode, YellowMode};
+use crate::history::{self, History};
 use crate::i18n::{self, Lang, pick};
 use crate::schedule::{BellEvent, BellKind, DayStatus, format_hhmm, parse_hhmm};
 use crate::{
-    AlertLevel, AppState, AppTray, AppWindow, EditLesson, LessonRow, LessonState, LogEntry,
-    LogKind, Theme, tr,
+    AlertLevel, AppState, AppTray, AppWindow, EditLesson, HistoryRow, HistoryRowKind, LessonRow,
+    LessonState, LogEntry, LogKind, Theme, tr,
 };
-use chrono::{DateTime, Duration, Local, NaiveDateTime};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime};
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -29,6 +32,8 @@ const TICK: StdDuration = StdDuration::from_millis(250);
 /// Якщо годинник «перестрибнув» далі (сон ПК), пропущені дзвінки не подаються.
 const MAX_CATCH_UP_SECONDS: i64 = 120;
 const LOG_LIMIT: usize = 50;
+/// Скільки подій історії читати з бази за раз.
+const HISTORY_PAGE: usize = 200;
 const TOAST_DURATION: StdDuration = StdDuration::from_secs(4);
 
 /// Повідомлення від фонових потоків.
@@ -60,6 +65,24 @@ pub struct Controller {
     /// Коли востаннє почалася хвилина мовчання (поки програвач не підтвердив
     /// відтворення, дзвінки все одно не подаються).
     memorial_started: Option<Instant>,
+    history: HistoryView,
+}
+
+/// База подій і те, що з неї показано на сторінці «Історія».
+struct HistoryView {
+    db: Option<History>,
+    /// Помилка відкриття бази або останнього запису в неї.
+    error: Option<String>,
+    filter: history::Filter,
+    /// Завантажені події, від новіших до старіших.
+    events: Vec<history::Event>,
+    /// У базі є старіші події, ніж завантажено.
+    more: bool,
+    /// Сторінку вже відкривали — нові події додаються в неї одразу.
+    loaded: bool,
+    /// День, відносно якого підписано заголовки («Сьогодні», «Вчора»).
+    today: NaiveDate,
+    rows: Rc<VecModel<HistoryRow>>,
 }
 
 /// Створює вікно, запускає фонові потоки і цикл подій.
@@ -87,6 +110,10 @@ pub fn run(config_path: PathBuf, instance: Option<Guard>) -> Result<(), slint::P
     let player = Player::spawn(move |message| {
         let _ = tx.send(Event::AudioError(message));
     });
+    let (db, history_error) = match History::open(&History::path_for(&config_path)) {
+        Ok(db) => (Some(db), None),
+        Err(err) => (None, Some(format!("{err:#}"))),
+    };
 
     let controller = Rc::new(RefCell::new(Controller {
         window: window.as_weak(),
@@ -108,6 +135,16 @@ pub fn run(config_path: PathBuf, instance: Option<Guard>) -> Result<(), slint::P
         today: Vec::new(),
         toast_until: None,
         memorial_started: None,
+        history: HistoryView {
+            db,
+            error: history_error,
+            filter: history::Filter::All,
+            events: Vec::new(),
+            more: false,
+            loaded: false,
+            today: Local::now().date_naive(),
+            rows: Rc::new(VecModel::default()),
+        },
     }));
     controller.borrow_mut().init(load_error);
     bind_callbacks(&window, &controller);
@@ -189,6 +226,14 @@ fn bind_callbacks(window: &AppWindow, controller: &Rc<RefCell<Controller>>) {
     state.on_settings_changed(action(controller, Controller::settings_changed));
     state.on_save_settings(action(controller, Controller::save_settings));
     state.on_dismiss_toast(action(controller, Controller::hide_toast));
+    state.on_history_opened(action(controller, Controller::history_opened));
+    state.on_history_load_more(action(controller, Controller::history_load_more));
+    let weak = Rc::downgrade(controller);
+    state.on_history_filter_changed(move |index| {
+        if let Some(c) = weak.upgrade() {
+            c.borrow_mut().history_filter_changed(index);
+        }
+    });
 
     let weak = Rc::downgrade(controller);
     state.on_lesson_edited(move |index, is_end, text| {
@@ -274,6 +319,60 @@ fn drill_lasting(start: DateTime<Local>, now: DateTime<Local>) -> Lasting {
     }
 }
 
+/// Рядки сторінки «Історія»: події з заголовком перед кожним новим днем і,
+/// якщо в базі є старіші, кнопка «Показати ще» в кінці.
+fn history_rows(events: &[history::Event], today: NaiveDate, more: bool) -> Vec<HistoryRow> {
+    let mut rows = Vec::with_capacity(events.len() + 8);
+    let mut day = None;
+    for event in events {
+        let date = event.at.date_naive();
+        if day != Some(date) {
+            day = Some(date);
+            rows.push(HistoryRow {
+                row: HistoryRowKind::Day,
+                text: day_label(date, today).into(),
+                time: Default::default(),
+                kind: LogKind::Info,
+            });
+        }
+        rows.push(HistoryRow {
+            row: HistoryRowKind::Event,
+            text: event.text.as_str().into(),
+            time: event.at.format("%H:%M:%S").to_string().into(),
+            kind: event.kind,
+        });
+    }
+    if more {
+        rows.push(HistoryRow {
+            row: HistoryRowKind::More,
+            text: Default::default(),
+            time: Default::default(),
+            kind: LogKind::Info,
+        });
+    }
+    rows
+}
+
+/// Оновлює модель до `rows`, змінюючи лише середину, що відрізняється: так
+/// список не перебудовується повністю і не стрибає прокручування, коли
+/// згори додається нова подія або знизу — старіші.
+fn sync_rows(model: &VecModel<HistoryRow>, rows: &[HistoryRow]) {
+    let old = model.row_count();
+    let same = |i: usize, row: &HistoryRow| model.row_data(i).as_ref() == Some(row);
+    let prefix = (0..old.min(rows.len()))
+        .take_while(|&i| same(i, &rows[i]))
+        .count();
+    let suffix = (0..(old - prefix).min(rows.len() - prefix))
+        .take_while(|&k| same(old - 1 - k, &rows[rows.len() - 1 - k]))
+        .count();
+    for _ in prefix..old - suffix {
+        model.remove(prefix);
+    }
+    for (offset, row) in rows[prefix..rows.len() - suffix].iter().enumerate() {
+        model.insert(prefix + offset, row.clone());
+    }
+}
+
 fn progress(elapsed: Duration, total: Duration) -> f32 {
     if total <= Duration::zero() {
         return 0.0;
@@ -301,6 +400,7 @@ impl Controller {
             ))));
             state.set_settings(to_form(&config));
             state.set_log(ModelRc::from(self.log.clone()));
+            state.set_history(ModelRc::from(self.history.rows.clone()));
             state.set_edit_days(ModelRc::from(self.edit_days.clone()));
             w.global::<Theme>().set_mode(config.ui.theme.index());
         });
@@ -309,6 +409,16 @@ impl Controller {
             LogKind::Info,
             pick("Програму запущено", "App started").into(),
         );
+        if let Some(error) = self.history.error.clone() {
+            self.push_log(
+                Local::now(),
+                LogKind::Error,
+                &tr!(
+                    "Історію подій не відкрито: {error}",
+                    "Event history not opened: {error}"
+                ),
+            );
+        }
         if let Some(error) = load_error {
             self.add_log(
                 LogKind::Error,
@@ -369,6 +479,11 @@ impl Controller {
             .is_some_and(|until| Instant::now() >= until)
         {
             self.hide_toast();
+        }
+
+        // Після півночі «Сьогодні» в історії стає «Вчора».
+        if self.history.loaded && self.history.today != naive.date() {
+            self.render_history();
         }
 
         self.render_day(naive);
@@ -827,8 +942,15 @@ impl Controller {
     }
 
     fn add_log(&mut self, kind: LogKind, text: String) {
+        let now = Local::now();
+        self.push_log(now, kind, &text);
+        self.record(now, kind, text);
+    }
+
+    /// Додає запис лише в журнал на головній.
+    fn push_log(&mut self, at: DateTime<Local>, kind: LogKind, text: &str) {
         let entry = LogEntry {
-            time: Local::now().format("%H:%M:%S").to_string().into(),
+            time: at.format("%H:%M:%S").to_string().into(),
             text: text.into(),
             kind,
         };
@@ -836,6 +958,114 @@ impl Controller {
         while self.log.row_count() > LOG_LIMIT {
             self.log.remove(self.log.row_count() - 1);
         }
+    }
+
+    /// Зберігає подію в базу і, якщо сторінку історії вже відкривали, додає
+    /// її туди.
+    fn record(&mut self, at: DateTime<Local>, kind: LogKind, text: String) {
+        let view = &mut self.history;
+        let Some(db) = &view.db else {
+            return;
+        };
+        match db.add(at, kind, &text) {
+            Ok(id) => {
+                view.error = None;
+                if view.loaded && view.filter.matches(kind) {
+                    view.events.insert(0, history::Event { id, at, kind, text });
+                }
+            }
+            Err(err) => {
+                let first = view.error.is_none();
+                view.error = Some(format!("{err:#}"));
+                // Лише в журнал на головній: запис про збій бази теж не запишеться.
+                if first {
+                    let message = tr!(
+                        "Історія: подію не збережено: {err:#}",
+                        "History: event not saved: {err:#}"
+                    );
+                    self.push_log(at, LogKind::Error, &message);
+                }
+            }
+        }
+        if self.history.loaded {
+            self.render_history();
+        }
+    }
+
+    // ---------- Історія ----------
+
+    fn history_opened(&mut self) {
+        self.history.events.clear();
+        self.history.more = false;
+        self.load_history_page();
+    }
+
+    fn history_load_more(&mut self) {
+        if self.history.more {
+            self.load_history_page();
+        }
+    }
+
+    fn history_filter_changed(&mut self, index: i32) {
+        self.history.filter = history::Filter::from_index(index);
+        self.with_window(|w| w.global::<AppState>().set_history_filter(index));
+        // Інший фільтр — інший список: показуємо його з початку.
+        self.history.rows.set_vec(Vec::new());
+        self.history_opened();
+    }
+
+    /// Дочитує з бази наступну сторінку старіших подій.
+    fn load_history_page(&mut self) {
+        let view = &mut self.history;
+        view.loaded = true;
+        if let Some(db) = &view.db {
+            let before = view.events.last().map(|e| e.id);
+            // На одну більше, щоб знати, чи лишились ще старіші.
+            match db.page(view.filter, before, HISTORY_PAGE + 1) {
+                Ok(mut events) => {
+                    view.more = events.len() > HISTORY_PAGE;
+                    events.truncate(HISTORY_PAGE);
+                    view.events.extend(events);
+                }
+                Err(err) => {
+                    view.more = false;
+                    view.error = Some(format!("{err:#}"));
+                }
+            }
+        }
+        self.render_history();
+    }
+
+    fn render_history(&mut self) {
+        let view = &mut self.history;
+        view.today = Local::now().date_naive();
+        let rows = history_rows(&view.events, view.today, view.more);
+        sync_rows(&view.rows, &rows);
+        let summary = match &view.db {
+            Some(db) => match db.count(view.filter) {
+                Ok(count) if view.filter == history::Filter::All => {
+                    tr!("Усього подій: {count}", "Total events: {count}")
+                }
+                Ok(count) => tr!("Подій цього виду: {count}", "Events of this kind: {count}"),
+                Err(_) => String::new(),
+            },
+            None => String::new(),
+        };
+        let error = view
+            .error
+            .as_ref()
+            .map(|e| {
+                tr!(
+                    "База історії недоступна: {e}",
+                    "History database unavailable: {e}"
+                )
+            })
+            .unwrap_or_default();
+        self.with_window(|w| {
+            let state = w.global::<AppState>();
+            state.set_history_summary(summary.into());
+            state.set_history_error(error.into());
+        });
     }
 
     fn show_toast(&mut self, text: &str, error: bool) {
@@ -1221,6 +1451,9 @@ impl Controller {
         });
         self.push_draft(false);
         self.settings_changed();
+        if self.history.loaded {
+            self.render_history();
+        }
         self.tick();
     }
 }
@@ -1298,6 +1531,81 @@ mod tests {
             drill_lasting(start, start + Duration::minutes(12)).duration,
             Duration::minutes(12)
         );
+    }
+
+    fn event(id: i64, day: u32, h: u32, kind: LogKind) -> history::Event {
+        history::Event {
+            id,
+            at: chrono::TimeZone::with_ymd_and_hms(&Local, 2026, 10, day, h, 0, 0).unwrap(),
+            kind,
+            text: format!("подія {id}"),
+        }
+    }
+
+    fn row_kinds(rows: &[HistoryRow]) -> Vec<HistoryRowKind> {
+        rows.iter().map(|r| r.row).collect()
+    }
+
+    #[test]
+    fn history_rows_are_grouped_by_day() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+        let events = [
+            event(4, 12, 10, LogKind::Bell),
+            event(3, 12, 9, LogKind::Alert),
+            event(2, 11, 15, LogKind::Info),
+            event(1, 9, 8, LogKind::Error),
+        ];
+        use HistoryRowKind::{Day, Event, More};
+        let rows = history_rows(&events, today, true);
+        assert_eq!(
+            row_kinds(&rows),
+            [Day, Event, Event, Day, Event, Day, Event, More]
+        );
+        assert_eq!(rows[0].text, "Сьогодні · понеділок, 12 жовтня");
+        assert_eq!(rows[1].text, "подія 4");
+        assert_eq!(rows[1].time, "10:00:00");
+        assert_eq!(rows[2].kind, LogKind::Alert);
+        assert_eq!(rows[3].text, "Вчора · неділя, 11 жовтня");
+        assert_eq!(rows[5].text, "П'ятниця, 9 жовтня");
+        assert!(history_rows(&[], today, false).is_empty());
+        assert_eq!(
+            row_kinds(&history_rows(&events[..1], today, false)),
+            [Day, Event]
+        );
+    }
+
+    /// Після синхронізації модель збігається з потрібними рядками.
+    fn check_sync(old: &[HistoryRow], new: &[HistoryRow]) {
+        let model = VecModel::from(old.to_vec());
+        sync_rows(&model, new);
+        let synced: Vec<_> = model.iter().collect();
+        assert_eq!(synced, new);
+    }
+
+    #[test]
+    fn sync_rows_matches_target() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
+        let all = [
+            event(5, 12, 11, LogKind::Bell),
+            event(4, 12, 10, LogKind::Bell),
+            event(3, 11, 9, LogKind::Alert),
+            event(2, 11, 8, LogKind::Info),
+            event(1, 10, 8, LogKind::Error),
+        ];
+        let rows = |events: &[history::Event], more| history_rows(events, today, more);
+        // Нова подія згори.
+        check_sync(&rows(&all[1..], false), &rows(&all, false));
+        // Подія нового дня згори.
+        check_sync(&rows(&all[2..], false), &rows(&all, false));
+        // Дочитали старіші знизу: «Показати ще» зникає.
+        check_sync(&rows(&all[..3], true), &rows(&all, false));
+        // Інший фільтр — зовсім інший список, і навпаки порожній.
+        check_sync(&rows(&all[..2], false), &rows(&all[3..], true));
+        check_sync(&rows(&all, true), &[]);
+        check_sync(&[], &rows(&all, false));
+        // Наступного дня змінюються лише заголовки.
+        let tomorrow = history_rows(&all, today.succ_opt().unwrap(), false);
+        check_sync(&rows(&all, false), &tomorrow);
     }
 
     #[test]

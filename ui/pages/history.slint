@@ -1,0 +1,205 @@
+// Сторінка «Історія»: усі події з бази, згруповані по днях, з фільтром за видом.
+
+import { ListView } from "std-widgets.slint";
+import { Theme, Shape, Type, Icons } from "../theme.slint";
+import { AppState, LogKind, HistoryRowKind } from "../state.slint";
+import { Card, CardKind } from "../components/surfaces.slint";
+import { Button, ButtonKind } from "../components/buttons.slint";
+import { FilterChip } from "../components/inputs.slint";
+import { Dropdown } from "../components/dropdown.slint";
+
+// Значок виду події — такий самий, як у журналі на головній.
+component EventIcon inherits Rectangle {
+    in property <LogKind> kind;
+
+    width: 32px;
+    height: 32px;
+    border-radius: Shape.small;
+    background: kind == LogKind.alert ? Theme.error-container
+        : kind == LogKind.all-clear ? Theme.success-container
+        : kind == LogKind.error ? Theme.error-container
+        : kind == LogKind.bell ? Theme.tertiary-container
+        : kind == LogKind.memorial ? Theme.primary-container
+        : Theme.secondary-container;
+
+    Image {
+        source: kind == LogKind.alert ? Icons.siren
+            : kind == LogKind.all-clear ? Icons.all-clear
+            : kind == LogKind.error ? Icons.warning
+            : kind == LogKind.bell ? Icons.bell
+            : kind == LogKind.memorial ? Icons.flag
+            : Icons.info;
+        width: 18px;
+        height: 18px;
+        colorize: kind == LogKind.alert || kind == LogKind.error ? Theme.on-error-container
+            : kind == LogKind.all-clear ? Theme.on-success-container
+            : kind == LogKind.bell ? Theme.on-tertiary-container
+            : kind == LogKind.memorial ? Theme.on-primary-container
+            : Theme.on-secondary-container;
+    }
+}
+
+export component HistoryPage {
+    in property <bool> narrow: false;
+
+    private property <[string]> filters: [
+        @tr("Усі"),
+        @tr("Тривоги"),
+        @tr("Дзвінки"),
+        @tr("Хвилина мовчання"),
+        @tr("Помилки"),
+        @tr("Інше"),
+    ];
+    // Чіпи фільтра вміщаються в рядок лише на широкій сторінці.
+    private property <bool> chips: root.width >= 720px;
+
+    // Свіжі події — згори: туди й повертаємось при відкритті та зміні фільтра.
+    public function scroll-to-top() {
+        list.content-y = 0;
+    }
+
+    function select-filter(index: int) {
+        scroll-to-top();
+        AppState.history-filter-changed(index);
+    }
+
+    VerticalLayout {
+        padding: narrow ? 16px : 24px;
+        spacing: 16px;
+
+        VerticalLayout {
+            spacing: 4px;
+
+            Text {
+                text: @tr("Історія подій");
+                color: Theme.on-surface;
+                font-size: Type.headline-large;
+                font-weight: Type.heavy;
+            }
+            if AppState.history-summary != "": Text {
+                text: AppState.history-summary;
+                color: Theme.on-surface-variant;
+                font-size: Type.body-medium;
+                wrap: word-wrap;
+            }
+        }
+
+        if chips: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+
+            for name[i] in filters: FilterChip {
+                text: name;
+                selected: AppState.history-filter == i;
+                toggled => { select-filter(i); }
+            }
+        }
+        if !chips: Dropdown {
+            label: @tr("Показувати");
+            model: filters;
+            current-index: AppState.history-filter;
+            container-color: Theme.surface;
+            selected(index) => { select-filter(index); }
+        }
+
+        if AppState.history-error != "": Card {
+            kind: CardKind.outlined;
+            radius: Shape.large;
+            min-height: error-layout.min-height;
+
+            error-layout := HorizontalLayout {
+                padding: 16px;
+                spacing: 12px;
+
+                Image {
+                    source: Icons.warning;
+                    width: 22px;
+                    height: 22px;
+                    y: (parent.height - self.height) / 2;
+                    colorize: Theme.error;
+                }
+                Text {
+                    text: AppState.history-error;
+                    color: Theme.error;
+                    font-size: Type.body-medium;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        Card {
+            kind: CardKind.filled;
+            vertical-stretch: 1;
+            min-height: 160px;
+            clip: true;
+
+            list := ListView {
+                width: parent.width;
+                height: parent.height;
+
+                for row in AppState.history: VerticalLayout {
+                    padding-left: narrow ? 12px : 24px;
+                    padding-right: narrow ? 12px : 24px;
+
+                    if row.row == HistoryRowKind.day: VerticalLayout {
+                        padding-top: 20px;
+                        padding-bottom: 8px;
+
+                        Text {
+                            text: row.text;
+                            color: Theme.primary;
+                            font-size: Type.title-small;
+                            font-weight: Type.emphasized;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    if row.row == HistoryRowKind.event: HorizontalLayout {
+                        spacing: 12px;
+                        padding-top: 6px;
+                        padding-bottom: 6px;
+
+                        EventIcon { kind: row.kind; }
+                        Text {
+                            text: row.time;
+                            color: Theme.on-surface-variant;
+                            font-size: Type.body-medium;
+                            font-weight: Type.medium;
+                            vertical-alignment: center;
+                            min-width: 64px;
+                        }
+                        Text {
+                            text: row.text;
+                            color: Theme.on-surface;
+                            font-size: Type.body-medium;
+                            vertical-alignment: center;
+                            wrap: word-wrap;
+                            horizontal-stretch: 1;
+                        }
+                    }
+
+                    if row.row == HistoryRowKind.more: HorizontalLayout {
+                        alignment: center;
+                        padding-top: 12px;
+                        padding-bottom: 16px;
+
+                        Button {
+                            text: @tr("Показати ще");
+                            icon: Icons.history;
+                            kind: ButtonKind.tonal;
+                            clicked => { AppState.history-load-more(); }
+                        }
+                    }
+                }
+            }
+
+            if AppState.history.length == 0: Text {
+                text: AppState.history-filter == 0 ? @tr("Подій ще немає") : @tr("Подій цього виду немає");
+                color: Theme.on-surface-variant;
+                font-size: Type.body-large;
+            }
+        }
+    }
+}

@@ -75,6 +75,29 @@ pub fn long_date(date: NaiveDate) -> String {
     }
 }
 
+/// Заголовок дня в історії: «Сьогодні · понеділок, 12 жовтня»,
+/// «Вчора · неділя, 11 жовтня», «Субота, 10 жовтня»; для іншого року — з роком.
+pub fn day_label(date: NaiveDate, today: NaiveDate) -> String {
+    let mut day = long_date(date);
+    if date.year() != today.year() {
+        let year = date.year();
+        day = tr!("{day} {year} р.", "{day}, {year}");
+    }
+    match (today - date).num_days() {
+        0 => format!("{} · {day}", pick("Сьогодні", "Today")),
+        1 => format!("{} · {day}", pick("Вчора", "Yesterday")),
+        _ => capitalize(&day),
+    }
+}
+
+fn capitalize(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 /// Порядковий номер уроку: «3-й».
 pub fn ordinal(n: usize) -> String {
     format!("{n}-й")
@@ -212,6 +235,23 @@ mod tests {
         assert_eq!(relative_day(now, dt(15, 8, 30)), "tomorrow at 08:30");
         assert_eq!(relative_day(now, dt(16, 8, 30)), "on Friday at 08:30");
         assert_eq!(relative_day(now, dt(26, 8, 30)), "October 26 at 08:30");
+        crate::i18n::set(Lang::Uk);
+    }
+
+    #[test]
+    fn day_labels() {
+        let today = dt(14, 0, 0).date(); // середа
+        assert_eq!(day_label(today, today), "Сьогодні · середа, 14 жовтня");
+        assert_eq!(
+            day_label(dt(13, 0, 0).date(), today),
+            "Вчора · вівторок, 13 жовтня"
+        );
+        assert_eq!(day_label(dt(10, 0, 0).date(), today), "Субота, 10 жовтня");
+        let old = NaiveDate::from_ymd_opt(2025, 12, 31).unwrap();
+        assert_eq!(day_label(old, today), "Середа, 31 грудня 2025 р.");
+        crate::i18n::set(Lang::En);
+        assert_eq!(day_label(today, today), "Today · Wednesday, October 14");
+        assert_eq!(day_label(old, today), "Wednesday, December 31, 2025");
         crate::i18n::set(Lang::Uk);
     }
 

@@ -383,3 +383,36 @@ msgstr "Stop sound"
 
 msgid "Вийти"
 msgstr "Quit"
+
+msgid "Історія"
+msgstr "History"
+
+msgid "Уся історія"
+msgstr "Full history"
+
+msgid "Історія подій"
+msgstr "Event history"
+
+msgid "Усі"
+msgstr "All"
+
+msgid "Тривоги"
+msgstr "Alerts"
+
+msgid "Дзвінки"
+msgstr "Bells"
+
+msgid "Помилки"
+msgstr "Errors"
+
+msgid "Інше"
+msgstr "Other"
+
+msgid "Показувати"
+msgstr "Show"
+
+msgid "Подій цього виду немає"
+msgstr "No events of this kind"
+
+msgid "Показати ще"
+msgstr "Show more"

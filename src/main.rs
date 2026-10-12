@@ -5,6 +5,7 @@ mod alert;
 mod app;
 mod audio;
 mod config;
+mod history;
 mod i18n;
 mod schedule;
 
